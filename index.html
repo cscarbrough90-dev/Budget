@@ -892,7 +892,7 @@ canvas { max-width: 100% !important; }
           <button class="nwt-btn" data-who="mine">Mine</button>
           <button class="nwt-btn" data-who="hers">Hers</button>
         </div>
-        <button id="nw-entry-btn" onclick="openNWModal()">+ Log This Month</button>
+
       </div>
     </div>
     <div id="nw-chart-wrap">
@@ -931,7 +931,7 @@ canvas { max-width: 100% !important; }
   <!-- ACCOUNTS GRID -->
   <div class="panel mb-24">
     <div class="panel-title">Account Breakdown
-      <span class="pt-action" onclick="openNWModal()">Update balances</span>
+
     </div>
     <div class="nw-grid" id="nw-accounts-grid"></div>
   </div>
@@ -1063,41 +1063,6 @@ canvas { max-width: 100% !important; }
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeBudgetModal()">Cancel</button>
       <button class="btn-primary" onclick="saveBudgets()">Save & Archive</button>
-    </div>
-  </div>
-</div>
-
-<!-- NET WORTH MODAL -->
-<div class="modal-overlay" id="nw-modal-overlay">
-  <div class="modal" style="width:640px">
-    <h2>Log Net Worth</h2>
-    <p class="modal-sub">Enter current balances. Use negative numbers for debts (loans, credit balances). Saved monthly with full history.</p>
-    <div class="mfield"><label>Month / Year</label><input type="month" id="nw-entry-month"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
-      <div>
-        <div class="modal-section-label">Joint</div>
-        <div id="nw-joint-fields"></div>
-        <div class="modal-section-label" style="margin-top:16px;color:var(--red)">Liabilities <span style="font-size:0.68rem;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none">enter remaining balance as negative (e.g. -18000)</span></div>
-        <div id="nw-liab-fields"></div>
-        <div class="modal-section-label" style="margin-top:16px">Your Accounts</div>
-        <div id="nw-my-fields"></div>
-        <div style="margin-top:10px">
-          <div id="nw-my-custom"></div>
-          <button type="button" onclick="addCustomAccount('mine')" style="font-size:0.75rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:4px 0">+ Add account</button>
-        </div>
-      </div>
-      <div>
-        <div class="modal-section-label">Partner's Accounts</div>
-        <div id="nw-her-fields"></div>
-        <div style="margin-top:10px">
-          <div id="nw-her-custom"></div>
-          <button type="button" onclick="addCustomAccount('hers')" style="font-size:0.75rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:4px 0">+ Add account</button>
-        </div>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeNWModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveNWEntry()">Save Entry</button>
     </div>
   </div>
 </div>
@@ -1302,7 +1267,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Budget modal
   document.getElementById('budget-edit-btn').addEventListener('click',openBudgetModal);
   document.getElementById('budget-modal-overlay').addEventListener('click',e=>{if(e.target.id==='budget-modal-overlay')closeBudgetModal();});
-  document.getElementById('nw-modal-overlay').addEventListener('click',e=>{if(e.target.id==='nw-modal-overlay')closeNWModal();});
   document.getElementById('trip-modal-overlay').addEventListener('click',e=>{if(e.target.id==='trip-modal-overlay')closeTripModal();});
 
   // Txn controls
@@ -2726,112 +2690,7 @@ function renderBudgetHistList(){
 }
 
 // NW MODAL
-function openNWModal(){
-  const now=new Date();
-  document.getElementById('nw-entry-month').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const history=getNWHistory();
-  const latest=history.length?[...history].sort((a,b)=>a.month.localeCompare(b.month)).pop():{};
-
-  const jointFields=document.getElementById('nw-joint-fields');
-  const myFields=document.getElementById('nw-my-fields');
-  const herFields=document.getElementById('nw-her-fields');
-  const myCustom=document.getElementById('nw-my-custom');
-  const herCustom=document.getElementById('nw-her-custom');
-  const liabFields=document.getElementById('nw-liab-fields');
-  jointFields.innerHTML='';myFields.innerHTML='';herFields.innerHTML='';
-  liabFields.innerHTML='';myCustom.innerHTML='';herCustom.innerHTML='';
-
-  NW_ACCOUNTS.forEach(acct=>{
-    const div=document.createElement('div');div.className='mfield';
-    const lbl=acct.owner==='joint'&&!acct.liability
-      ?`${acct.icon} ${acct.label} <span style="font-size:0.66rem;color:var(--text3)">(full balance)</span>`
-      :`${acct.icon} ${acct.label}`;
-    div.innerHTML=`<label>${lbl}</label>
-      <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="${acct.liability?'e.g. -18000':'0'}"
-        style="${acct.liability?'border-color:rgba(239,68,68,0.3)':''}">`;
-    if(acct.liability) liabFields.appendChild(div);
-    else if(acct.owner==='joint') jointFields.appendChild(div);
-    else if(acct.owner==='hers') herFields.appendChild(div);
-    else myFields.appendChild(div);
-  });
-
-  // Restore custom accounts
-  const customs=nwCustomAccounts;
-  customs.filter(a=>a.owner==='mine').forEach(a=>renderCustomField(a,latest,myCustom));
-  customs.filter(a=>a.owner==='hers').forEach(a=>renderCustomField(a,latest,herCustom));
-
-  document.getElementById('nw-modal-overlay').classList.add('open');
-}
-
-function renderCustomField(acct,latest,container){
-  const div=document.createElement('div');div.className='mfield';
-  div.style.position='relative';
-  div.innerHTML=`<label>${acct.icon||'💰'} ${acct.label}
-    <span onclick="removeCustomAccount('${acct.id}')" style="color:var(--red);cursor:pointer;margin-left:8px;font-size:0.7rem">✕ remove</span>
-  </label>
-  <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
-  container.appendChild(div);
-}
-
 let customCounter=0;
-function addCustomAccount(owner){
-  const name=prompt('Account name (e.g. Savings Bond, Car Value, HELOC):');
-  if(!name||!name.trim()) return;
-  const id=`custom_${owner}_${++customCounter}_${Date.now()}`;
-  const acct={id,label:name.trim(),icon:'💰',owner};
-  nwCustomAccounts.push(acct);
-  localStorage.setItem('nw_custom_accounts',JSON.stringify(nwCustomAccounts));
-  // Re-open modal to show new field
-  openNWModal();
-}
-
-function removeCustomAccount(id){
-  nwCustomAccounts=nwCustomAccounts.filter(a=>a.id!==id);
-  localStorage.setItem('nw_custom_accounts',JSON.stringify(nwCustomAccounts));
-  openNWModal();
-}
-function closeNWModal(){document.getElementById('nw-modal-overlay').classList.remove('open');}
-function saveNWEntry(){
-  const month=document.getElementById('nw-entry-month').value;
-  if(!month)return;
-  const entry={month};
-  getAllAccounts().forEach(a=>{
-    const el=document.getElementById('nw-field-'+a.id);
-    if(el){const v=parseFloat(el.value);if(!isNaN(v))entry[a.id]=v;}
-  });
-
-  // Save to localStorage as buffer
-  let local=[];
-  try{local=JSON.parse(localStorage.getItem('nw_history')||'[]');}catch{}
-  local=local.filter(e=>e.month!==month);
-  local.push(entry);
-  localStorage.setItem('nw_history',JSON.stringify(local));
-
-  // Build the row to copy into Google Sheet
-  const cols=getAllAccounts().map(a=>entry[a.id]!==undefined?entry[a.id]:'');
-  const sheetRow=[month,...cols].join('	');
-  
-  closeNWModal();
-
-  // Show copy-to-sheet prompt
-  const banner=document.createElement('div');
-  banner.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:var(--surface);border:1px solid var(--blue);border-radius:12px;
-    padding:16px 20px;z-index:400;max-width:560px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.4)`;
-  banner.innerHTML=`
-    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--blue);margin-bottom:8px">Saved locally — paste into Google Sheet to persist</div>
-    <div style="font-size:0.75rem;color:var(--text2);margin-bottom:10px">Copy this row and paste it into a new row in your NetWorth tab:</div>
-    <textarea readonly onclick="this.select()" style="width:100%;height:52px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;font-family:var(--mono);font-size:0.72rem;color:var(--text);resize:none">${sheetRow}</textarea>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-      <div style="font-size:0.72rem;color:var(--text3)">Click the text above to select all, then Ctrl+C</div>
-      <button onclick="this.parentElement.parentElement.remove()" style="padding:5px 14px;border-radius:8px;background:var(--blue);border:none;color:white;font-size:0.78rem;font-weight:600;cursor:pointer">Got it</button>
-    </div>`;
-  document.body.appendChild(banner);
-  setTimeout(()=>banner.remove(),30000);
-
-  renderNW();
-}
-
 // TRIP MODAL
 function openTripModal(){document.getElementById('trip-modal-overlay').classList.add('open');}
 function closeTripModal(){document.getElementById('trip-modal-overlay').classList.remove('open');}
