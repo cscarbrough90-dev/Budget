@@ -981,6 +981,27 @@ let currentYear, currentMonth;
 let donutChart=null, trendChart=null, nwChart=null;
 let txnPage=1; const TXN_PER_PAGE=25;
 let txnFiltered=[];
+let monthlyCache={};  // pre-computed monthly buckets
+
+function buildCache(){
+  monthlyCache={};
+  allRows.forEach(r=>{
+    if(!r.date)return;
+    const key=`${r.date.getFullYear()}-${r.date.getMonth()}-${r.card}`;
+    if(!monthlyCache[key])monthlyCache[key]=[];
+    monthlyCache[key].push(r);
+  });
+}
+
+function getCached(yr,mo){
+  // Returns rows for all active cards for given month
+  const rows=[];
+  activeCards.forEach(card=>{
+    const key=`${yr}-${mo}-${card}`;
+    if(monthlyCache[key])rows.push(...monthlyCache[key]);
+  });
+  return rows;
+}
 let mpYear; // month picker year
 let nwWho='combined';
 
@@ -1146,6 +1167,7 @@ function processData(raw){
     return{date:d,name:r.Name||'',cost,type:r.Type||'Other',card:r.Card||'Unknown',notes:r.Notes||''};
   }).filter(r=>r.date&&!isNaN(r.cost));
 
+  buildCache();
   allCards=[...new Set(allRows.map(r=>r.card))].sort();
   activeCards=new Set(allCards);
   buildCardPills();
@@ -1173,7 +1195,7 @@ function buildCardPills(){
     btn.addEventListener('click',()=>{
       if(activeCards.has(card)){if(activeCards.size===1)return;activeCards.delete(card);btn.classList.remove('active');}
       else{activeCards.add(card);btn.classList.add('active');}
-      renderAll();
+      buildCache(); renderAll();
     });
     wrap.appendChild(btn);
   });
@@ -1192,7 +1214,7 @@ function buildCatFilter(){
 // ── FILTERED ROWS ─────────────────────────────────────────
 function getMonthRows(yr,mo){
   yr=yr??currentYear; mo=mo??currentMonth;
-  return allRows.filter(r=>activeCards.has(r.card)&&r.date.getFullYear()===yr&&r.date.getMonth()===mo);
+  return getCached(yr,mo);
 }
 function prevYM(yr,mo){let y=yr,m=mo-1;if(m<0){m=11;y--;}return{y,m};}
 function prevYearYM(yr,mo){return{y:yr-1,m:mo};}
@@ -1206,19 +1228,21 @@ function renderAll(){
   const rows=getMonthRows();
   const posRows=rows.filter(r=>r.cost>0);
   const total=sumPositive(rows);
+  // Pre-compute category means ONCE for anomaly + bars + table
+  const _catMeans=computeCatMeans();
   renderIncome(total);
   renderKPIs(rows,total);
   renderComparisons(total);
-  renderAnomalies(rows);
+  renderAnomalies(rows,_catMeans);
   renderGauge(total);
   renderTrips();
-  renderCatBars(rows);
+  renderCatBars(rows,_catMeans);
   renderDonut(rows);
   renderTrend();
   renderRecurring();
   renderTopMerchants(rows);
   renderRefunds(rows);
-  renderTxnTable();
+  renderTxnTable(_catMeans);
 }
 
 // ── INCOME & SAVINGS ──────────────────────────────────────
@@ -1311,20 +1335,24 @@ function renderDelta(elId,current,prev,label){
   el.className='cmp-delta-big '+(pct>0?'pos':'neg');
 }
 
-// ── ANOMALY DETECTION ─────────────────────────────────────
-function renderAnomalies(rows){
-  const container=document.getElementById('anomaly-section');
-  // Calculate per-category averages from last 6 months
+// ── CAT MEANS (computed once) ────────────────────────────
+function computeCatMeans(){
   const catAvgs={};
   for(let i=1;i<=6;i++){
     const d=new Date(currentYear,currentMonth-i,1);
-    getMonthRows(d.getFullYear(),d.getMonth()).filter(r=>r.cost>0).forEach(r=>{
+    getCached(d.getFullYear(),d.getMonth()).filter(r=>r.cost>0).forEach(r=>{
       if(!catAvgs[r.type])catAvgs[r.type]={sum:0,cnt:0};
       catAvgs[r.type].sum+=r.cost;catAvgs[r.type].cnt++;
     });
   }
-  const catMeans={};
-  Object.entries(catAvgs).forEach(([c,v])=>catMeans[c]=v.cnt>0?v.sum/v.cnt:0);
+  const means={};
+  Object.entries(catAvgs).forEach(([c,v])=>means[c]=v.sum/v.cnt);
+  return means;
+}
+
+// ── ANOMALY DETECTION ─────────────────────────────────────
+function renderAnomalies(rows,catMeans){
+  const container=document.getElementById('anomaly-section');
 
   const spikes=rows.filter(r=>r.cost>0&&catMeans[r.type]&&r.cost>=3*catMeans[r.type])
     .sort((a,b)=>b.cost-a.cost).slice(0,5);
@@ -1481,7 +1509,8 @@ function renderTrips(){
 }
 
 // ── CATEGORY BARS ─────────────────────────────────────────
-function renderCatBars(rows){
+function renderCatBars(rows,catMeans=null){
+  if(!catMeans)catMeans=computeCatMeans();
   const budgets=getBudgets();
   const posRows=rows.filter(r=>r.cost>0);
   const negRows=rows.filter(r=>r.cost<0);
@@ -1492,15 +1521,7 @@ function renderCatBars(rows){
   const container=document.getElementById('cat-bars');
   container.innerHTML='';
 
-  // Category averages for spike detection
-  const catMeans={};
-  for(let i=1;i<=6;i++){
-    const d=new Date(currentYear,currentMonth-i,1);
-    const mr=getMonthRows(d.getFullYear(),d.getMonth()).filter(r=>r.cost>0);
-    mr.forEach(r=>{if(!catMeans[r.type])catMeans[r.type]={sum:0,cnt:0};catMeans[r.type].sum+=r.cost;catMeans[r.type].cnt++;});
-  }
-  const means={};
-  Object.entries(catMeans).forEach(([c,v])=>means[c]=v.sum/v.cnt);
+  const means=catMeans;
 
   sorted.forEach(([cat,catRows])=>{
     const gross=sumCost(catRows);
@@ -1692,7 +1713,8 @@ function renderRefunds(rows){
 }
 
 // ── TRANSACTION TABLE ─────────────────────────────────────
-function renderTxnTable(){
+function renderTxnTable(catMeans=null){
+  if(!catMeans)catMeans=computeCatMeans();
   const search=document.getElementById('txn-search').value.toLowerCase();
   const catF=document.getElementById('txn-cat-filter').value;
   const sortV=document.getElementById('txn-sort').value;
@@ -1711,17 +1733,7 @@ function renderTxnTable(){
   const start=(txnPage-1)*TXN_PER_PAGE;
   const pageRows=rows.slice(start,start+TXN_PER_PAGE);
 
-  // Compute category averages for spike detection
-  const catMeans={};
-  for(let i=1;i<=6;i++){
-    const d=new Date(currentYear,currentMonth-i,1);
-    getMonthRows(d.getFullYear(),d.getMonth()).filter(r=>r.cost>0).forEach(r=>{
-      if(!catMeans[r.type])catMeans[r.type]={sum:0,cnt:0};
-      catMeans[r.type].sum+=r.cost;catMeans[r.type].cnt++;
-    });
-  }
-  const means={};
-  Object.entries(catMeans).forEach(([c,v])=>means[c]=v.sum/v.cnt);
+  const means=catMeans;
 
   const tbody=document.getElementById('txn-tbody');tbody.innerHTML='';
   pageRows.forEach(r=>{
@@ -1733,246 +1745,4 @@ function renderTxnTable(){
       <td class="td-date">${fmtDate(r.date)}</td>
       <td class="td-name" title="${r.name}">${clean(r.name)}${isSpike?'<span class="spike-flag">⚡</span>':''}</td>
       <td class="td-amt ${isRefund?'refund':''}">${isRefund?'+':'-'}${fmt(Math.abs(r.cost))}</td>
-      <td><span class="type-badge" style="background:${color}20;color:${color}">${r.type}</span></td>
-      <td class="td-card">${shortCard(r.card)}</td>
-      <td class="td-notes">${r.notes}</td>`;
-    tbody.appendChild(tr);
-  });
-  document.getElementById('txn-count-lbl').textContent=`${rows.length} transaction${rows.length!==1?'s':''}`;
-  document.getElementById('pg-lbl').textContent=`${txnPage} / ${totalPages}`;
-  document.getElementById('pg-prev').disabled=txnPage<=1;
-  document.getElementById('pg-next').disabled=txnPage>=totalPages;
-}
-
-// ══════════════════════════════════════════════════════════
-// NET WORTH
-// ══════════════════════════════════════════════════════════
-function renderNW(){
-  const history=getNWHistory();
-  if(!history.length){
-    document.getElementById('nw-total-val').textContent='No data yet';
-    document.getElementById('nw-accounts-grid').innerHTML='<div style="color:var(--text3);font-size:0.83rem">Click "Log This Month" to start tracking your net worth.</div>';
-    renderNWChart([]);
-    return;
-  }
-
-  const sorted=[...history].sort((a,b)=>a.month.localeCompare(b.month));
-  const latest=sorted[sorted.length-1];
-  const prev=sorted.length>1?sorted[sorted.length-2]:null;
-
-  const total=calcNWTotal(latest,nwWho);
-  const prevTotal=prev?calcNWTotal(prev,nwWho):null;
-  const delta=prevTotal!==null?total-prevTotal:null;
-
-  document.getElementById('nw-total-val').textContent=fmt(total);
-  document.getElementById('nw-total-val').className='nw-total '+(total>=0?'pos':'neg');
-  if(delta!==null){
-    document.getElementById('nw-mom-delta').textContent=(delta>=0?'+':'')+fmt(delta);
-    document.getElementById('nw-mom-delta').className='nw-delta '+(delta>=0?'pos':'neg');
-    document.getElementById('nw-mom-label').textContent='vs '+formatMonth(prev.month);
-  }
-
-  // Account cards
-  const grid=document.getElementById('nw-accounts-grid');grid.innerHTML='';
-  NW_ACCOUNTS.forEach(acct=>{
-    if(nwWho==='mine'&&acct.owner==='hers')return;
-    if(nwWho==='hers'&&(acct.owner==='mine'||acct.owner==='joint'))return;
-    const val=parseFloat(latest[acct.id])||0;
-    const prevVal=prev?parseFloat(prev[acct.id])||0:null;
-    const change=prevVal!==null?val-prevVal:null;
-    const card=document.createElement('div');card.className='acct-card';
-    card.innerHTML=`
-      <div class="acct-icon">${acct.icon}</div>
-      <div class="acct-name">${acct.label}</div>
-      <div class="acct-value ${val>=0?'pos':'neg'}">${fmt(val)}</div>
-      <div class="acct-owner">${acct.owner==='joint'?'Joint':acct.owner==='hers'?'Partner':'Mine'}</div>
-      ${change!==null?`<div class="acct-change ${change>=0?'pos':'neg'}">${change>=0?'▲':'▼'} ${fmt(Math.abs(change))}</div>`:''}`;
-    grid.appendChild(card);
-  });
-
-  renderNWChart(sorted);
-  renderNWHistoryTable(sorted);
-}
-
-function calcNWTotal(entry,who){
-  let total=0;
-  NW_ACCOUNTS.forEach(acct=>{
-    if(who==='mine'&&acct.owner==='hers')return;
-    if(who==='hers'&&(acct.owner==='mine'||acct.owner==='joint'))return;
-    total+=parseFloat(entry[acct.id])||0;
-  });
-  return total;
-}
-
-function renderNWChart(sorted){
-  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
-  const labels=sorted.map(e=>formatMonth(e.month));
-  const totals=sorted.map(e=>calcNWTotal(e,nwWho));
-  const canvas=document.getElementById('nw-chart');
-  if(nwChart)nwChart.destroy();
-
-  const grad=canvas.getContext('2d').createLinearGradient(0,0,0,220);
-  grad.addColorStop(0,'rgba(59,130,246,0.25)');
-  grad.addColorStop(1,'rgba(59,130,246,0)');
-
-  nwChart=new Chart(canvas,{
-    type:'line',
-    data:{
-      labels,
-      datasets:[{
-        label:'Net Worth',data:totals,
-        borderColor:'var(--blue)',backgroundColor:grad,
-        borderWidth:2.5,fill:true,tension:0.35,
-        pointBackgroundColor:'var(--blue)',pointRadius:4,pointHoverRadius:6,
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:ctx=>` Net Worth: ${fmt(ctx.parsed.y)}`}}
-      },
-      scales:{
-        x:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'Inter',size:11}}},
-        y:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+v.toLocaleString()}},
-      }
-    }
-  });
-}
-
-function renderNWHistoryTable(sorted){
-  const rev=[...sorted].reverse();
-  const header=document.getElementById('nw-hist-header');
-  const body=document.getElementById('nw-hist-body');
-  const visAccts=NW_ACCOUNTS.filter(a=>nwWho==='combined'||(nwWho==='mine'&&a.owner!=='hers')||(nwWho==='hers'&&a.owner!=='mine'&&a.owner!=='joint'));
-
-  header.innerHTML=`<th>Month</th>${visAccts.map(a=>`<th>${a.label}</th>`).join('')}<th>Total</th>`;
-  body.innerHTML='';
-  rev.forEach(entry=>{
-    const total=calcNWTotal(entry,nwWho);
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="color:var(--text2)">${formatMonth(entry.month)}</td>
-      ${visAccts.map(a=>`<td style="color:${parseFloat(entry[a.id])>=0?'var(--text)':'var(--red)'}">${entry[a.id]?fmt(parseFloat(entry[a.id])):'—'}</td>`).join('')}
-      <td style="color:${total>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(total)}</td>`;
-    body.appendChild(tr);
-  });
-}
-
-function formatMonth(m){
-  const[y,mo]=m.split('-');
-  return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'numeric'});
-}
-
-// ══════════════════════════════════════════════════════════
-// MODALS
-// ══════════════════════════════════════════════════════════
-
-// BUDGET MODAL
-function openBudgetModal(){
-  const b=getBudgets();
-  document.getElementById('mb-total').value=b.__total||'';
-  const cats=[...new Set(allRows.map(r=>r.type))].sort();
-  const container=document.getElementById('mb-cats');container.innerHTML='';
-  cats.forEach(cat=>{
-    const color=CAT_COLORS[cat]||'#546E7A';
-    const div=document.createElement('div');div.className='mfield';
-    div.innerHTML=`<label><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:6px"></span>${cat}</label>
-      <input type="number" data-cat="${cat}" value="${b[cat]||''}" placeholder="No target">`;
-    container.appendChild(div);
-  });
-  renderBudgetHistList();
-  document.getElementById('budget-modal-overlay').classList.add('open');
-}
-function closeBudgetModal(){document.getElementById('budget-modal-overlay').classList.remove('open');}
-function saveBudgets(){
-  const existing=getBudgets();
-  const nb={__total:parseFloat(document.getElementById('mb-total').value)||0};
-  document.querySelectorAll('#mb-cats input[data-cat]').forEach(inp=>{const v=parseFloat(inp.value);if(v>0)nb[inp.dataset.cat]=v;});
-  if(JSON.stringify(existing)!==JSON.stringify(nb)&&(existing.__total||Object.keys(existing).length>1)){
-    const hist=getBudgetHistory();
-    hist.push({timestamp:new Date().toISOString(),budgets:existing});
-    localStorage.setItem('budget_history',JSON.stringify(hist.slice(-24)));
-  }
-  localStorage.setItem('budgets',JSON.stringify(nb));
-  closeBudgetModal();renderAll();
-}
-function renderBudgetHistList(){
-  const hist=getBudgetHistory();const c=document.getElementById('budget-hist-list');
-  if(!hist.length){c.innerHTML='<div style="font-size:0.77rem;color:var(--text3)">No history yet.</div>';return;}
-  c.innerHTML=[...hist].reverse().slice(0,8).map(h=>{
-    const d=new Date(h.timestamp);
-    return`<div class="hist-row"><span>${h.budgets.__total?fmt(h.budgets.__total)+' total':''}</span><span class="hist-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span></div>`;
-  }).join('');
-}
-
-// NW MODAL
-function openNWModal(){
-  const now=new Date();
-  document.getElementById('nw-entry-month').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const history=getNWHistory();
-  const latest=history.length?[...history].sort((a,b)=>a.month.localeCompare(b.month)).pop():{};
-
-  const myFields=document.getElementById('nw-my-fields');
-  const herFields=document.getElementById('nw-her-fields');
-  myFields.innerHTML='';herFields.innerHTML='';
-
-  NW_ACCOUNTS.forEach(acct=>{
-    const div=document.createElement('div');div.className='mfield';
-    div.innerHTML=`<label>${acct.icon} ${acct.label}</label>
-      <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
-    (acct.owner==='hers'?herFields:myFields).appendChild(div);
-  });
-  document.getElementById('nw-modal-overlay').classList.add('open');
-}
-function closeNWModal(){document.getElementById('nw-modal-overlay').classList.remove('open');}
-function saveNWEntry(){
-  const month=document.getElementById('nw-entry-month').value;
-  if(!month)return;
-  const entry={month};
-  NW_ACCOUNTS.forEach(a=>{
-    const v=parseFloat(document.getElementById('nw-field-'+a.id).value);
-    if(!isNaN(v))entry[a.id]=v;
-  });
-  const history=getNWHistory().filter(e=>e.month!==month);
-  history.push(entry);
-  localStorage.setItem('nw_history',JSON.stringify(history));
-  closeNWModal();renderNW();
-}
-
-// TRIP MODAL
-function openTripModal(){document.getElementById('trip-modal-overlay').classList.add('open');}
-function closeTripModal(){document.getElementById('trip-modal-overlay').classList.remove('open');}
-function saveTrip(){
-  const name=document.getElementById('trip-name').value.trim();
-  const start=document.getElementById('trip-start').value;
-  const end=document.getElementById('trip-end').value;
-  const keyword=document.getElementById('trip-keyword').value.trim();
-  if(!name||!start||!end)return;
-  const trips=getTrips();
-  trips.push({name,start,end,keyword});
-  localStorage.setItem('trips',JSON.stringify(trips));
-  closeTripModal();renderTrips();
-}
-function removeTrip(name){
-  const trips=getTrips().filter(t=>t.name!==name);
-  localStorage.setItem('trips',JSON.stringify(trips));
-  renderTrips();
-}
-
-// ── STORAGE HELPERS ───────────────────────────────────────
-function getBudgets(){try{return JSON.parse(localStorage.getItem('budgets')||'{}');}catch{return{};}}
-function getBudgetHistory(){try{return JSON.parse(localStorage.getItem('budget_history')||'[]');}catch{return[];}}
-function getNWHistory(){try{return JSON.parse(localStorage.getItem('nw_history')||'[]');}catch{return[];}}
-function getTrips(){try{return JSON.parse(localStorage.getItem('trips')||'[]');}catch{return[];}}
-
-// ── HELPERS ───────────────────────────────────────────────
-function fmt(n){return'$'+(+n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtDate(d){return`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;}
-function groupBy(arr,key){return arr.reduce((a,r)=>{(a[r[key]]=a[r[key]]||[]).push(r);return a;},{});}
-function avg(arr){return arr.reduce((s,v)=>s+v,0)/arr.length;}
-function clean(name){
-  return name.replace(/\s+\d{3}-\d{3}-\d{4}.*$/,'').replace(/\s+(CA|OR|WA|TX|NY|NC|WI|VA|DE|OH|FL|AR|DC|NV|PA|NY|GA|MN)\s*$/,'').replace(/\s{2,}/g,' ').trim().slice(0,45);
-}
-</script>
-</body>
-</html>
+      <td><span class="type-badge" style="background:$
