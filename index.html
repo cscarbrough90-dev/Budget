@@ -942,6 +942,7 @@ body {
 // ║  CONFIG                                                  ║
 // ╚══════════════════════════════════════════════════════════╝
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?output=csv';
+const FIXED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?gid=75479951&single=true&output=csv';
 
 const CAT_COLORS = {
   'Groceries':'#10B981','Food Delivery':'#F59E0B','Dining Out':'#EF4444',
@@ -977,6 +978,7 @@ const RECURRING_KEYWORDS = ['SPOTIFY','APPLE.COM/BILL','YOUTUBE','PEACOCK','HELP
 
 // ── STATE ─────────────────────────────────────────────────
 let allRows=[], activeCards=new Set(), allCards=[];
+let fixedExpenses=[]; // from Fixed tab
 let currentYear, currentMonth;
 let donutChart=null, trendChart=null, nwChart=null;
 let txnPage=1; const TXN_PER_PAGE=25;
@@ -1126,37 +1128,65 @@ const PROXIES=[
   url=>`https://corsproxy.io/?${encodeURIComponent(url)}&t=${Date.now()}`,
 ];
 
-function loadData(proxyIndex=0){
+function proxyFetch(csvUrl, proxyIndex=0){
+  return new Promise((resolve,reject)=>{
+    if(proxyIndex>=PROXIES.length){reject('all proxies failed');return;}
+    let timedOut=false;
+    const timer=setTimeout(()=>{
+      timedOut=true;
+      proxyFetch(csvUrl,proxyIndex+1).then(resolve).catch(reject);
+    },8000);
+    Papa.parse(PROXIES[proxyIndex](csvUrl),{
+      download:true,header:true,skipEmptyLines:true,
+      complete:r=>{
+        if(timedOut)return;
+        clearTimeout(timer);
+        if(!r.data||r.data.length===0){
+          proxyFetch(csvUrl,proxyIndex+1).then(resolve).catch(reject);
+        } else { resolve(r.data); }
+      },
+      error:()=>{
+        if(timedOut)return;
+        clearTimeout(timer);
+        proxyFetch(csvUrl,proxyIndex+1).then(resolve).catch(reject);
+      }
+    });
+  });
+}
+
+function loadData(){
   document.getElementById('loading').style.display='flex';
   document.getElementById('app').style.display='none';
   updateMonthBtn();
-  if(!SHEET_CSV_URL){ loadDemo(); return; }
+  if(!SHEET_CSV_URL){loadDemo();return;}
 
-  // Timeout: if no response in 8s try next proxy
-  let timedOut=false;
-  const timer=setTimeout(()=>{
-    timedOut=true;
-    console.warn('Proxy',proxyIndex,'timed out, trying next...');
-    if(proxyIndex+1<PROXIES.length) loadData(proxyIndex+1);
-    else { console.warn('All proxies failed, loading demo'); loadDemo(); }
-  }, 8000);
+  // Fetch both CSVs in parallel
+  const fetches=[proxyFetch(SHEET_CSV_URL)];
+  if(FIXED_CSV_URL) fetches.push(proxyFetch(FIXED_CSV_URL));
 
-  const proxyUrl=PROXIES[proxyIndex](SHEET_CSV_URL);
-  Papa.parse(proxyUrl,{
-    download:true,header:true,skipEmptyLines:true,
-    complete:r=>{
-      if(timedOut)return; // another proxy already fired
-      clearTimeout(timer);
-      if(!r.data||r.data.length===0){ loadData(proxyIndex+1); return; }
-      processData(r.data);
-      document.getElementById('last-updated').textContent='↻ '+new Date().toLocaleTimeString();
-    },
-    error:()=>{
-      if(timedOut)return;
-      clearTimeout(timer);
-      if(proxyIndex+1<PROXIES.length) loadData(proxyIndex+1);
-      else loadDemo();
+  Promise.allSettled(fetches).then(results=>{
+    const txnResult=results[0];
+    const fixedResult=results[1];
+
+    if(txnResult.status==='rejected'||!txnResult.value){
+      loadDemo(); return;
     }
+
+    // Process fixed expenses
+    if(fixedResult&&fixedResult.status==='fulfilled'&&fixedResult.value){
+      fixedExpenses=fixedResult.value.map(r=>({
+        name: r.Name||r.name||'',
+        amount: parseFloat(r.Amount||r.amount)||0,
+        category: r.Category||r.category||'Fixed Expense',
+        card: r.Card||r.card||'Checking',
+      })).filter(r=>r.amount>0);
+      console.log('Fixed expenses loaded:',fixedExpenses.length,fixedExpenses);
+    } else {
+      fixedExpenses=[];
+    }
+
+    processData(txnResult.value);
+    document.getElementById('last-updated').textContent='↻ '+new Date().toLocaleTimeString();
   });
 }
 
@@ -1247,10 +1277,20 @@ function prevYearYM(yr,mo){return{y:yr-1,m:mo};}
 function sumCost(rows){return rows.reduce((s,r)=>s+r.cost,0);}
 function sumPositive(rows){return rows.filter(r=>r.cost>0).reduce((s,r)=>s+r.cost,0);}
 function sumNegative(rows){return rows.filter(r=>r.cost<0).reduce((s,r)=>s+r.cost,0);}
+function getFixedTotal(){return fixedExpenses.reduce((s,r)=>s+r.amount,0);}
+function getFixedAsRows(){
+  // Convert fixed expenses to row-like objects for the current month
+  const d=new Date(currentYear,currentMonth,1);
+  return fixedExpenses.map(f=>({
+    date:d, name:f.name, cost:f.amount, type:f.category, card:f.card, notes:'Fixed expense', isFixed:true
+  }));
+}
 
 // ── RENDER ALL ────────────────────────────────────────────
 function renderAll(){
-  const rows=getMonthRows();
+  const cardRows=getMonthRows();
+  const fixedRows=getFixedAsRows();
+  const rows=[...cardRows,...fixedRows];
   const posRows=rows.filter(r=>r.cost>0);
   const total=sumPositive(rows);
   // Pre-compute category means ONCE for anomaly + bars + table
@@ -1323,8 +1363,10 @@ function renderKPIs(rows,total){
 
   // Recurring KPI
   const recTotal=calcRecurringTotal();
-  document.getElementById('kv-recurring').textContent=fmt(recTotal);
-  document.getElementById('ks-recurring').textContent=recTotal>0?'fixed monthly costs':'';
+  // kv-recurring set below with fixed total
+  const fixedTot=getFixedTotal();
+  document.getElementById('kv-recurring').textContent=fmt(recTotal+fixedTot);
+  document.getElementById('ks-recurring').textContent=fixedTot>0?`incl. ${fmt(fixedTot)} obligations`:'';
 }
 
 // ── COMPARISONS ───────────────────────────────────────────
@@ -1706,7 +1748,9 @@ function renderRecurring(){
     found[key].months.add(`${r.date.getFullYear()}-${r.date.getMonth()}`);
   });
   const entries=Object.values(found).filter(e=>e.months.size>=2).sort((a,b)=>avg(b.amounts)-avg(a.amounts));
-  const total=entries.reduce((s,e)=>s+avg(e.amounts),0);
+  const recurringTotal=entries.reduce((s,e)=>s+avg(e.amounts),0);
+  const fixedTotal=getFixedTotal();
+  const total=recurringTotal+fixedTotal;
   document.getElementById('recurring-total-val').textContent=fmt(total);
 
   const list=document.getElementById('recurring-list');
@@ -1718,6 +1762,19 @@ function renderRecurring(){
       <div class="rec-amt">${fmt(avg(e.amounts))}</div>`;
     list.appendChild(d);
   });
+  // Append fixed expenses
+  if(fixedExpenses.length){
+    const hdr=document.createElement('div');
+    hdr.style.cssText='font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin:14px 0 8px;';
+    hdr.textContent='Fixed Monthly Obligations';
+    list.appendChild(hdr);
+    fixedExpenses.forEach(f=>{
+      const d=document.createElement('div');d.className='rec-row';
+      d.innerHTML=`<div><div class="rec-name">${f.name}</div><div class="rec-meta">${f.card} · fixed</div></div>
+        <div class="rec-amt" style="color:var(--red)">${fmt(f.amount)}</div>`;
+      list.appendChild(d);
+    });
+  }
 }
 
 // ── TOP MERCHANTS ─────────────────────────────────────────
@@ -1936,6 +1993,8 @@ function saveBudgets(){
   const existing=getBudgets();
   const nb={__total:parseFloat(document.getElementById('mb-total').value)||0};
   document.querySelectorAll('#mb-cats input[data-cat]').forEach(inp=>{const v=parseFloat(inp.value);if(v>0)nb[inp.dataset.cat]=v;});
+  // Auto-set fixed expense categories to their exact amount if no target set
+  fixedExpenses.forEach(f=>{ if(!nb[f.category]) nb[f.category]=f.amount; });
   if(JSON.stringify(existing)!==JSON.stringify(nb)&&(existing.__total||Object.keys(existing).length>1)){
     const hist=getBudgetHistory();
     hist.push({timestamp:new Date().toISOString(),budgets:existing});
@@ -2024,5 +2083,4 @@ function clean(name){
 </script>
 </body>
 </html>
-
 
