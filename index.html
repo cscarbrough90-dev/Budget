@@ -550,6 +550,15 @@ body {
 .hist-row:last-child { border-bottom: none; }
 .hist-date { font-family: var(--mono); font-size: 0.72rem; color: var(--text3); }
 
+/* ── RETIRE PANEL ────────────────────────────────────────── */
+#retire-config .mfield input {
+  width:100%;padding:8px 12px;background:var(--surface2);
+  border:1px solid var(--border2);border-radius:10px;
+  color:var(--text);font-family:var(--mono);font-size:0.88rem;outline:none;
+}
+#retire-config .mfield input:focus{border-color:var(--blue);}
+#retire-config .mfield label{display:block;font-size:0.72rem;font-weight:600;color:var(--text2);margin-bottom:5px;}
+
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 1100px) {
   #kpi-row { grid-template-columns: repeat(3,1fr); }
@@ -851,12 +860,63 @@ body {
     </div>
   </div>
 
+  <!-- NW KPI ROW -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px" id="nw-kpi-row">
+    <div class="kpi-card"><div class="kpi-accent green"></div><div class="kpi-label">Total Assets</div><div class="kpi-value" id="nwk-assets">$0</div></div>
+    <div class="kpi-card"><div class="kpi-accent red"></div><div class="kpi-label">Total Liabilities</div><div class="kpi-value" id="nwk-liab" style="color:var(--red)">$0</div></div>
+    <div class="kpi-card"><div class="kpi-accent purple"></div><div class="kpi-label">Retirement Assets</div><div class="kpi-value" id="nwk-retire">$0</div></div>
+    <div class="kpi-card"><div class="kpi-accent amber"></div><div class="kpi-label">Liquid Assets</div><div class="kpi-value" id="nwk-liquid">$0</div></div>
+  </div>
+
+  <!-- CHARTS ROW 1: Equity Line + His vs Hers -->
+  <div class="grid-2">
+    <div class="panel mb-24">
+      <div class="panel-title">Net Worth Trajectory</div>
+      <div style="height:220px"><canvas id="nw-equity-chart"></canvas></div>
+    </div>
+    <div class="panel mb-24">
+      <div class="panel-title">His vs Hers Over Time</div>
+      <div style="height:220px"><canvas id="nw-hvsh-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2: Allocation + Assets vs Liabilities -->
+  <div class="grid-2">
+    <div class="panel mb-24">
+      <div class="panel-title">Wealth Allocation</div>
+      <div style="height:220px"><canvas id="nw-alloc-chart"></canvas></div>
+    </div>
+    <div class="panel mb-24">
+      <div class="panel-title">Assets vs Liabilities</div>
+      <div style="height:220px"><canvas id="nw-avsl-chart"></canvas></div>
+    </div>
+  </div>
+
   <!-- ACCOUNTS GRID -->
-  <div class="panel mb-24" id="nw-accounts-section">
-    <div class="panel-title">Account Breakdown — Latest Entry
-      <span class="pt-action" onclick="openNWModal()">Update</span>
+  <div class="panel mb-24">
+    <div class="panel-title">Account Breakdown
+      <span class="pt-action" onclick="openNWModal()">Update balances</span>
     </div>
     <div class="nw-grid" id="nw-accounts-grid"></div>
+  </div>
+
+  <!-- RETIREMENT CALCULATOR -->
+  <div class="panel mb-24" id="retire-panel">
+    <div class="panel-title">Retirement Calculator
+      <span class="pt-action" onclick="toggleRetireCalc()">Configure</span>
+    </div>
+    <div id="retire-config" style="display:none;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px">
+        <div class="mfield"><label>Current Age</label><input type="number" id="rc-age" value="35" min="18" max="80" oninput="renderRetire()"></div>
+        <div class="mfield"><label>Target Retirement Age</label><input type="number" id="rc-retire-age" value="65" min="40" max="80" oninput="renderRetire()"></div>
+        <div class="mfield"><label>Monthly Contribution ($)</label><input type="number" id="rc-contrib" value="1000" oninput="renderRetire()"></div>
+        <div class="mfield"><label>Expected Annual Return (%)</label><input type="number" id="rc-return" value="7" step="0.5" oninput="renderRetire()"></div>
+        <div class="mfield"><label>Expected Inflation (%)</label><input type="number" id="rc-inflation" value="3" step="0.5" oninput="renderRetire()"></div>
+        <div class="mfield"><label>Monthly Income Needed (today $)</label><input type="number" id="rc-income-need" value="6000" oninput="renderRetire()"></div>
+      </div>
+    </div>
+    <div id="retire-results"></div>
+    <div style="height:200px;margin-top:20px"><canvas id="retire-chart"></canvas></div>
   </div>
 
   <!-- HISTORY TABLE -->
@@ -903,17 +963,30 @@ body {
 
 <!-- NET WORTH MODAL -->
 <div class="modal-overlay" id="nw-modal-overlay">
-  <div class="modal">
+  <div class="modal" style="width:640px">
     <h2>Log Net Worth</h2>
-    <p class="modal-sub">Enter current balances. Saved monthly — previous entries are preserved as history.</p>
-    <div class="mfield">
-      <label>Month / Year</label>
-      <input type="month" id="nw-entry-month">
+    <p class="modal-sub">Enter current balances. Use negative numbers for debts (loans, credit balances). Saved monthly with full history.</p>
+    <div class="mfield"><label>Month / Year</label><input type="month" id="nw-entry-month"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+      <div>
+        <div class="modal-section-label">Joint</div>
+        <div id="nw-joint-fields"></div>
+        <div class="modal-section-label" style="margin-top:16px">Your Accounts</div>
+        <div id="nw-my-fields"></div>
+        <div style="margin-top:10px">
+          <div id="nw-my-custom"></div>
+          <button type="button" onclick="addCustomAccount('mine')" style="font-size:0.75rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:4px 0">+ Add account</button>
+        </div>
+      </div>
+      <div>
+        <div class="modal-section-label">Partner's Accounts</div>
+        <div id="nw-her-fields"></div>
+        <div style="margin-top:10px">
+          <div id="nw-her-custom"></div>
+          <button type="button" onclick="addCustomAccount('hers')" style="font-size:0.75rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:4px 0">+ Add account</button>
+        </div>
+      </div>
     </div>
-    <div class="modal-section-label">Your Accounts</div>
-    <div id="nw-my-fields"></div>
-    <div class="modal-section-label">Partner's Accounts</div>
-    <div id="nw-her-fields"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeNWModal()">Cancel</button>
       <button class="btn-primary" onclick="saveNWEntry()">Save Entry</button>
@@ -992,25 +1065,24 @@ const DEFAULT_BUDGETS = {
 };
 
 const NW_ACCOUNTS = [
-  // ── JOINT (combined only, split 50/50 in individual views) ──
-  { id:'joint',          label:'Joint Checking',  icon:'🤝', owner:'joint' },
-
-  // ── HIS accounts ──
-  { id:'my_checking',    label:'Checking',        icon:'🏦', owner:'mine' },
-  { id:'my_hysa',        label:'HYSA',            icon:'📈', owner:'mine' },
-  { id:'my_401k',        label:'401k',            icon:'🏛️', owner:'mine' },
-  { id:'my_hsa',         label:'HSA',             icon:'🏥', owner:'mine' },
-  { id:'my_fidelity',    label:'Fidelity',        icon:'📊', owner:'mine' },
-  { id:'my_m1',          label:'M1 Finance',      icon:'💹', owner:'mine' },
-  { id:'my_crypto',      label:'Crypto',          icon:'₿',  owner:'mine' },
-
-  // ── HERS accounts (mirrors his, Roth IRA instead of 401k) ──
-  { id:'her_checking',   label:'Checking',        icon:'🏦', owner:'hers' },
-  { id:'her_hysa',       label:'HYSA',            icon:'📈', owner:'hers' },
-  { id:'her_roth',       label:'Roth IRA',        icon:'🏛️', owner:'hers' },
-  { id:'her_hsa',        label:'HSA',             icon:'🏥', owner:'hers' },
-  { id:'her_fidelity',   label:'Fidelity',        icon:'📊', owner:'hers' },
-  { id:'her_crypto',     label:'Crypto',          icon:'₿',  owner:'hers' },
+  // Joint
+  { id:'joint',         label:'Joint Checking', icon:'🤝', owner:'joint' },
+  // His
+  { id:'my_checking',   label:'Checking',       icon:'🏦', owner:'mine' },
+  { id:'my_hysa',       label:'HYSA',           icon:'📈', owner:'mine' },
+  { id:'my_hsa',        label:'HSA',            icon:'🏥', owner:'mine' },
+  { id:'my_401k',       label:'401k',           icon:'🏛️', owner:'mine' },
+  { id:'my_roth',       label:'Roth IRA',       icon:'💎', owner:'mine' },
+  { id:'my_fidelity',   label:'Fidelity',       icon:'📊', owner:'mine' },
+  { id:'my_crypto',     label:'Crypto',         icon:'₿',  owner:'mine' },
+  // Hers
+  { id:'her_checking',  label:'Checking',       icon:'🏦', owner:'hers' },
+  { id:'her_hysa',      label:'HYSA',           icon:'📈', owner:'hers' },
+  { id:'her_hsa',       label:'HSA',            icon:'🏥', owner:'hers' },
+  { id:'her_401k',      label:'401k',           icon:'🏛️', owner:'hers' },
+  { id:'her_roth',      label:'Roth IRA',       icon:'💎', owner:'hers' },
+  { id:'her_fidelity',  label:'Fidelity',       icon:'📊', owner:'hers' },
+  { id:'her_crypto',    label:'Crypto',         icon:'₿',  owner:'hers' },
 ];
 
 const RECURRING_KEYWORDS = ['SPOTIFY','APPLE.COM/BILL','YOUTUBE','PEACOCK','HELP.MAX','HELP.HBOMAX',
@@ -1021,6 +1093,8 @@ const RECURRING_KEYWORDS = ['SPOTIFY','APPLE.COM/BILL','YOUTUBE','PEACOCK','HELP
 // ── STATE ─────────────────────────────────────────────────
 let allRows=[], activeCards=new Set(), allCards=[];
 let fixedExpenses=[]; // from Fixed tab
+let nwCustomAccounts=[];
+try{ nwCustomAccounts=JSON.parse(localStorage.getItem('nw_custom_accounts')||'[]'); }catch{}
 let currentYear, currentMonth;
 let donutChart=null, trendChart=null, nwChart=null;
 let txnPage=1; const TXN_PER_PAGE=25;
@@ -1092,6 +1166,11 @@ window.addEventListener('DOMContentLoaded',()=>{
     localStorage.setItem('theme',t);
     if(donutChart)donutChart.destroy(),donutChart=null;
     if(trendChart)trendChart.destroy(),trendChart=null;
+    if(nwEquityChart)nwEquityChart.destroy(),nwEquityChart=null;
+    if(nwHvshChart)nwHvshChart.destroy(),nwHvshChart=null;
+    if(nwAllocChart)nwAllocChart.destroy(),nwAllocChart=null;
+    if(nwAvslChart)nwAvslChart.destroy(),nwAvslChart=null;
+    if(retireChart)retireChart.destroy(),retireChart=null;
     renderAll();
   });
   const savedTheme=localStorage.getItem('theme');
@@ -1894,75 +1973,68 @@ function renderTxnTable(catMeans=null){
 // ══════════════════════════════════════════════════════════
 // NET WORTH
 // ══════════════════════════════════════════════════════════
+let nwEquityChart=null,nwHvshChart=null,nwAllocChart=null,nwAvslChart=null,retireChart=null;
+
 function renderNW(){
   const history=getNWHistory();
-  if(!history.length){
-    document.getElementById('nw-total-val').textContent='No data yet';
-    document.getElementById('nw-accounts-grid').innerHTML='<div style="color:var(--text3);font-size:0.83rem">Click "Log This Month" to start tracking your net worth.</div>';
-    renderNWChart([]);
-    return;
-  }
-
   const sorted=[...history].sort((a,b)=>a.month.localeCompare(b.month));
-  const latest=sorted[sorted.length-1];
+  const latest=sorted.length?sorted[sorted.length-1]:{};
   const prev=sorted.length>1?sorted[sorted.length-2]:null;
 
   const total=calcNWTotal(latest,nwWho);
   const prevTotal=prev?calcNWTotal(prev,nwWho):null;
   const delta=prevTotal!==null?total-prevTotal:null;
 
+  // Hero
   document.getElementById('nw-total-val').textContent=fmt(total);
   document.getElementById('nw-total-val').className='nw-total '+(total>=0?'pos':'neg');
   if(delta!==null){
     document.getElementById('nw-mom-delta').textContent=(delta>=0?'+':'')+fmt(delta);
     document.getElementById('nw-mom-delta').className='nw-delta '+(delta>=0?'pos':'neg');
     document.getElementById('nw-mom-label').textContent='vs '+formatMonth(prev.month);
+  } else {
+    document.getElementById('nw-mom-delta').textContent='';
+    document.getElementById('nw-mom-label').textContent='no prior data yet';
   }
 
-  // Account cards
-  const grid=document.getElementById('nw-accounts-grid');grid.innerHTML='';
-  NW_ACCOUNTS.forEach(acct=>{
-    // Visibility rules
-    if(nwWho==='mine'&&acct.owner==='hers') return;
-    if(nwWho==='hers'&&acct.owner==='mine') return;
-    if(nwWho!=='combined'&&acct.owner==='joint'){
-      // Show joint in individual views but with split value
-    }
-
-    const rawVal=parseFloat(latest[acct.id])||0;
-    // For individual views show 50/50 of joint
-    const displayVal=(acct.owner==='joint'&&nwWho!=='combined')?rawVal/2:rawVal;
-    const prevRaw=prev?parseFloat(prev[acct.id])||0:null;
-    const prevDisplay=prevRaw!==null?((acct.owner==='joint'&&nwWho!=='combined')?prevRaw/2:prevRaw):null;
-    const change=prevDisplay!==null?displayVal-prevDisplay:null;
-
-    const ownerLabel=acct.owner==='joint'
-      ? (nwWho==='combined'?'Joint (full)':'Joint (your 50%)')
-      : acct.owner==='hers'?'Hers':'Mine';
-
-    const card=document.createElement('div');card.className='acct-card';
-    card.innerHTML=`
-      <div class="acct-icon">${acct.icon}</div>
-      <div class="acct-name">${acct.label}</div>
-      <div class="acct-value ${displayVal>=0?'pos':'neg'}">${fmt(displayVal)}</div>
-      <div class="acct-owner">${ownerLabel}</div>
-      ${change!==null?`<div class="acct-change ${change>=0?'pos':'neg'}">${change>=0?'▲':'▼'} ${fmt(Math.abs(change))}</div>`:''}`;
-    grid.appendChild(card);
+  // KPI cards
+  const allAccts=getAllAccounts();
+  let assets=0,liabs=0,retire=0,liquid=0;
+  allAccts.forEach(a=>{
+    if(nwWho==='mine'&&a.owner==='hers') return;
+    if(nwWho==='hers'&&a.owner==='mine') return;
+    let v=parseFloat(latest[a.id])||0;
+    if(a.owner==='joint'&&nwWho!=='combined') v=v/2;
+    if(v>0) assets+=v; else liabs+=v;
+    if(['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'].includes(a.id)) retire+=v;
+    if(['my_checking','my_hysa','her_checking','her_hysa','joint'].includes(a.id)) liquid+=Math.max(0,v);
   });
+  document.getElementById('nwk-assets').textContent=fmt(assets);
+  document.getElementById('nwk-liab').textContent=fmt(Math.abs(liabs));
+  document.getElementById('nwk-retire').textContent=fmt(retire);
+  document.getElementById('nwk-liquid').textContent=fmt(liquid);
 
-  renderNWChart(sorted);
+  renderNWEquityChart(sorted);
+  renderNWHvsH(sorted);
+  renderNWAlloc(latest);
+  renderNWAvsl(sorted);
+  renderNWAccountGrid(latest,prev);
+  renderRetire();
   renderNWHistoryTable(sorted);
+}
+
+function getAllAccounts(){
+  const custom=nwCustomAccounts||[];
+  return [...NW_ACCOUNTS,...custom];
 }
 
 function calcNWTotal(entry,who){
   let total=0;
-  NW_ACCOUNTS.forEach(acct=>{
+  getAllAccounts().forEach(acct=>{
     const val=parseFloat(entry[acct.id])||0;
     if(acct.owner==='joint'){
-      // Joint: full value in combined, 50/50 in individual views
       if(who==='combined') total+=val;
-      else if(who==='mine') total+=val/2;
-      else if(who==='hers') total+=val/2;
+      else total+=val/2;
     } else {
       if(who==='combined') total+=val;
       else if(who==='mine'&&acct.owner==='mine') total+=val;
@@ -1972,68 +2044,318 @@ function calcNWTotal(entry,who){
   return total;
 }
 
-function renderNWChart(sorted){
+// ── CHART 1: Equity Line ─────────────────────────────────
+function renderNWEquityChart(sorted){
   const isDark=document.documentElement.getAttribute('data-theme')==='dark';
   const labels=sorted.map(e=>formatMonth(e.month));
   const totals=sorted.map(e=>calcNWTotal(e,nwWho));
-  const canvas=document.getElementById('nw-chart');
-  if(nwChart)nwChart.destroy();
-
-  const grad=canvas.getContext('2d').createLinearGradient(0,0,0,220);
-  grad.addColorStop(0,'rgba(59,130,246,0.25)');
+  const canvas=document.getElementById('nw-equity-chart');
+  if(nwEquityChart)nwEquityChart.destroy();
+  const ctx=canvas.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,220);
+  grad.addColorStop(0,'rgba(59,130,246,0.3)');
   grad.addColorStop(1,'rgba(59,130,246,0)');
-
-  nwChart=new Chart(canvas,{
+  nwEquityChart=new Chart(canvas,{
     type:'line',
-    data:{
-      labels,
-      datasets:[{
-        label:'Net Worth',data:totals,
-        borderColor:'var(--blue)',backgroundColor:grad,
-        borderWidth:2.5,fill:true,tension:0.35,
-        pointBackgroundColor:'var(--blue)',pointRadius:4,pointHoverRadius:6,
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:ctx=>` Net Worth: ${fmt(ctx.parsed.y)}`}}
-      },
+    data:{labels,datasets:[{label:'Net Worth',data:totals,borderColor:'#3B82F6',
+      backgroundColor:grad,borderWidth:2.5,fill:true,tension:0.35,
+      pointBackgroundColor:'#3B82F6',pointRadius:4,pointHoverRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmt(ctx.parsed.y)}`}}},
       scales:{
-        x:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'Inter',size:11}}},
-        y:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+v.toLocaleString()}},
-      }
-    }
+        x:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{size:10}}},
+        y:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+v.toLocaleString()}}
+      }}
   });
 }
 
+// ── CHART 2: His vs Hers ─────────────────────────────────
+function renderNWHvsH(sorted){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const labels=sorted.map(e=>formatMonth(e.month));
+  const mine=sorted.map(e=>calcNWTotal(e,'mine'));
+  const hers=sorted.map(e=>calcNWTotal(e,'hers'));
+  if(nwHvshChart)nwHvshChart.destroy();
+  nwHvshChart=new Chart(document.getElementById('nw-hvsh-chart'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Yours',data:mine,borderColor:'#3B82F6',backgroundColor:'rgba(59,130,246,0.08)',
+        borderWidth:2,fill:true,tension:0.35,pointRadius:3},
+      {label:'Partner',data:hers,borderColor:'#EC4899',backgroundColor:'rgba(236,72,153,0.08)',
+        borderWidth:2,fill:true,tension:0.35,pointRadius:3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:isDark?'#94A3B8':'#475569',font:{size:11},boxWidth:10}}},
+      scales:{
+        x:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{size:10}}},
+        y:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+v.toLocaleString()}}
+      }}
+  });
+}
+
+// ── CHART 3: Allocation Donut ─────────────────────────────
+function renderNWAlloc(latest){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const buckets={
+    'Retirement':0,'Brokerage':0,'Cash & HYSA':0,'Crypto':0,'Other':0
+  };
+  getAllAccounts().forEach(a=>{
+    let v=parseFloat(latest[a.id])||0;
+    if(a.owner==='joint'&&nwWho!=='combined') v=v/2;
+    if(nwWho==='mine'&&a.owner==='hers') return;
+    if(nwWho==='hers'&&a.owner==='mine') return;
+    if(v<=0) return;
+    if(a.id.includes('401k')||a.id.includes('roth')) buckets['Retirement']+=v;
+    else if(a.id.includes('fidelity')||a.id.includes('m1')) buckets['Brokerage']+=v;
+    else if(a.id.includes('checking')||a.id.includes('hysa')||a.id.includes('hsa')||a.id==='joint') buckets['Cash & HYSA']+=v;
+    else if(a.id.includes('crypto')) buckets['Crypto']+=v;
+    else buckets['Other']+=v;
+  });
+  const labels=Object.keys(buckets).filter(k=>buckets[k]>0);
+  const data=labels.map(k=>buckets[k]);
+  const colors=['#3B82F6','#10B981','#F59E0B','#F97316','#8B5CF6'];
+  if(nwAllocChart)nwAllocChart.destroy();
+  nwAllocChart=new Chart(document.getElementById('nw-alloc-chart'),{
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors.slice(0,labels.length),
+      borderColor:isDark?'#111827':'#ffffff',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'right',labels:{color:isDark?'#94A3B8':'#475569',font:{size:11},boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.parsed)}`}}}}
+  });
+}
+
+// ── CHART 4: Assets vs Liabilities ───────────────────────
+function renderNWAvsl(sorted){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const labels=sorted.map(e=>formatMonth(e.month));
+  const assets=sorted.map(e=>{
+    let a=0;
+    getAllAccounts().forEach(acct=>{
+      if(nwWho==='mine'&&acct.owner==='hers') return;
+      if(nwWho==='hers'&&acct.owner==='mine') return;
+      let v=parseFloat(e[acct.id])||0;
+      if(acct.owner==='joint'&&nwWho!=='combined') v=v/2;
+      if(v>0) a+=v;
+    });
+    return a;
+  });
+  const liabs=sorted.map(e=>{
+    let l=0;
+    getAllAccounts().forEach(acct=>{
+      if(nwWho==='mine'&&acct.owner==='hers') return;
+      if(nwWho==='hers'&&acct.owner==='mine') return;
+      let v=parseFloat(e[acct.id])||0;
+      if(acct.owner==='joint'&&nwWho!=='combined') v=v/2;
+      if(v<0) l+=Math.abs(v);
+    });
+    return l;
+  });
+  if(nwAvslChart)nwAvslChart.destroy();
+  nwAvslChart=new Chart(document.getElementById('nw-avsl-chart'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Assets',data:assets,backgroundColor:'rgba(16,185,129,0.7)',borderColor:'#10B981',borderWidth:1,borderRadius:4},
+      {label:'Liabilities',data:liabs,backgroundColor:'rgba(239,68,68,0.7)',borderColor:'#EF4444',borderWidth:1,borderRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:isDark?'#94A3B8':'#475569',font:{size:11},boxWidth:10}}},
+      scales:{
+        x:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{size:10}}},
+        y:{grid:{color:isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+v.toLocaleString()}}
+      }}
+  });
+}
+
+// ── ACCOUNT GRID ─────────────────────────────────────────
+function renderNWAccountGrid(latest,prev){
+  const grid=document.getElementById('nw-accounts-grid');
+  grid.innerHTML='';
+  // Group header helper
+  const addHeader=(label)=>{
+    const h=document.createElement('div');
+    h.style.cssText='grid-column:1/-1;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px';
+    h.textContent=label; grid.appendChild(h);
+  };
+
+  const renderAcct=(acct,rawVal,prevRaw)=>{
+    const isJointIndividual=acct.owner==='joint'&&nwWho!=='combined';
+    const displayVal=isJointIndividual?rawVal/2:rawVal;
+    const prevDisplay=prevRaw!==null?(isJointIndividual?prevRaw/2:prevRaw):null;
+    const change=prevDisplay!==null?displayVal-prevDisplay:null;
+    const ownerLabel=acct.owner==='joint'?(nwWho==='combined'?'Joint — full balance':'Joint — your 50%'):acct.owner==='hers'?'Hers':'Yours';
+    const card=document.createElement('div');card.className='acct-card';
+    card.innerHTML=`<div class="acct-icon">${acct.icon||'💰'}</div>
+      <div class="acct-name">${acct.label}</div>
+      <div class="acct-value ${displayVal>=0?'pos':'neg'}">${fmt(displayVal)}</div>
+      <div class="acct-owner">${ownerLabel}</div>
+      ${change!==null?`<div class="acct-change ${change>=0?'pos':'neg'}">${change>=0?'▲':'▼'} ${fmt(Math.abs(change))}</div>`:''}`;
+    grid.appendChild(card);
+  };
+
+  const all=getAllAccounts();
+
+  if(nwWho==='combined'||nwWho==='mine'){
+    if(nwWho==='combined') addHeader('Joint');
+    all.filter(a=>a.owner==='joint').forEach(a=>renderAcct(a,parseFloat(latest[a.id])||0,prev?parseFloat(prev[a.id])||0:null));
+  }
+  if(nwWho==='combined') addHeader('Yours');
+  if(nwWho!=='hers') all.filter(a=>a.owner==='mine').forEach(a=>renderAcct(a,parseFloat(latest[a.id])||0,prev?parseFloat(prev[a.id])||0:null));
+  if(nwWho==='combined') addHeader("Partner's");
+  if(nwWho!=='mine') all.filter(a=>a.owner==='hers').forEach(a=>renderAcct(a,parseFloat(latest[a.id])||0,prev?parseFloat(prev[a.id])||0:null));
+}
+
+// ── RETIREMENT CALCULATOR ─────────────────────────────────
+function toggleRetireCalc(){
+  const el=document.getElementById('retire-config');
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function renderRetire(){
+  const history=getNWHistory();
+  if(!history.length) return;
+  const sorted=[...history].sort((a,b)=>a.month.localeCompare(b.month));
+  const latest=sorted[sorted.length-1];
+
+  // Get current retirement assets from latest entry
+  const retireIds=['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'];
+  let currentRetire=0;
+  retireIds.forEach(id=>{ currentRetire+=Math.max(0,parseFloat(latest[id])||0); });
+
+  const age=parseInt(document.getElementById('rc-age')?.value)||35;
+  const retireAge=parseInt(document.getElementById('rc-retire-age')?.value)||65;
+  const monthlyContrib=parseFloat(document.getElementById('rc-contrib')?.value)||1000;
+  const annualReturn=parseFloat(document.getElementById('rc-return')?.value)||7;
+  const inflation=parseFloat(document.getElementById('rc-inflation')?.value)||3;
+  const monthlyNeed=parseFloat(document.getElementById('rc-income-need')?.value)||6000;
+
+  const years=retireAge-age;
+  const r=annualReturn/100/12;
+  const months=years*12;
+
+  // Future value of current savings + contributions
+  const fvCurrent=currentRetire*Math.pow(1+r,months);
+  const fvContrib=monthlyContrib*((Math.pow(1+r,months)-1)/r);
+  const projectedBalance=fvCurrent+fvContrib;
+
+  // Inflation-adjusted income need at retirement
+  const inflationFactor=Math.pow(1+inflation/100,years);
+  const futureMonthlyNeed=monthlyNeed*inflationFactor;
+  const neededNestEgg=futureMonthlyNeed*12/0.04; // 4% rule
+
+  // Gap
+  const gap=projectedBalance-neededNestEgg;
+  const onTrack=gap>=0;
+
+  // Monthly needed to close gap
+  let monthlyNeeded=0;
+  if(!onTrack){
+    monthlyNeeded=Math.abs(gap)/((Math.pow(1+r,months)-1)/r);
+  }
+
+  // Monthly income at retirement (4% rule)
+  const monthlyAtRetire=projectedBalance*0.04/12;
+
+  const res=document.getElementById('retire-results');
+  res.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+      <div class="kpi-card" style="padding:16px">
+        <div class="kpi-accent ${onTrack?'green':'red'}"></div>
+        <div class="kpi-label">Projected at ${retireAge}</div>
+        <div class="kpi-value" style="font-size:1.3rem;color:${onTrack?'var(--green)':'var(--amber)'}">${fmtM(projectedBalance)}</div>
+      </div>
+      <div class="kpi-card" style="padding:16px">
+        <div class="kpi-accent purple"></div>
+        <div class="kpi-label">Nest Egg Needed</div>
+        <div class="kpi-value" style="font-size:1.3rem">${fmtM(neededNestEgg)}</div>
+        <div class="kpi-sub">4% withdrawal rule</div>
+      </div>
+      <div class="kpi-card" style="padding:16px">
+        <div class="kpi-accent ${onTrack?'green':'amber'}"></div>
+        <div class="kpi-label">Monthly Income</div>
+        <div class="kpi-value" style="font-size:1.3rem;color:var(--green)">${fmt(monthlyAtRetire)}</div>
+        <div class="kpi-sub">at 4% withdrawal</div>
+      </div>
+      <div class="kpi-card" style="padding:16px">
+        <div class="kpi-accent ${onTrack?'green':'red'}"></div>
+        <div class="kpi-label">${onTrack?'Surplus':'Gap'}</div>
+        <div class="kpi-value" style="font-size:1.3rem;color:${onTrack?'var(--green)':'var(--red)'}">${onTrack?'+':''}${fmtM(gap)}</div>
+        ${!onTrack?`<div class="kpi-sub">Need +${fmt(monthlyNeeded)}/mo</div>`:''}
+      </div>
+    </div>
+    <div style="padding:14px 18px;border-radius:10px;background:${onTrack?'rgba(16,185,129,0.08)':'rgba(245,158,11,0.08)'};border:1px solid ${onTrack?'rgba(16,185,129,0.2)':'rgba(245,158,11,0.2)'};font-size:0.83rem;color:var(--text2)">
+      ${onTrack
+        ? `✓ At your current pace you're projected to retire at <strong style="color:var(--green)">${retireAge}</strong> with <strong style="color:var(--green)">${fmtM(projectedBalance)}</strong>. That covers <strong style="color:var(--green)">${fmt(monthlyAtRetire)}/mo</strong> in today's dollars — ${monthlyAtRetire>=monthlyNeed?'more than':'close to'} your target of ${fmt(monthlyNeed)}/mo.`
+        : `⚠ You're projected to be <strong style="color:var(--red)">${fmtM(Math.abs(gap))}</strong> short of your retirement goal. To close this gap, increase monthly contributions by <strong style="color:var(--amber)">${fmt(monthlyNeeded)}</strong>, delay retirement by a few years, or reduce your target monthly income.`
+      }
+    </div>`;
+
+  // Projection chart
+  const chartLabels=[],balData=[],needData=[];
+  for(let y=0;y<=years;y++){
+    chartLabels.push(age+y);
+    const m=y*12;
+    const bal=currentRetire*Math.pow(1+r,m)+monthlyContrib*((Math.pow(1+r,m)-1)/r);
+    balData.push(Math.round(bal));
+    needData.push(Math.round(neededNestEgg));
+  }
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  if(retireChart)retireChart.destroy();
+  retireChart=new Chart(document.getElementById('retire-chart'),{
+    type:'line',
+    data:{labels:chartLabels,datasets:[
+      {label:'Projected Balance',data:balData,borderColor:'#3B82F6',backgroundColor:'rgba(59,130,246,0.1)',
+        fill:true,tension:0.3,borderWidth:2,pointRadius:0},
+      {label:'Target Nest Egg',data:needData,borderColor:'#EF4444',backgroundColor:'transparent',
+        borderWidth:1.5,borderDash:[6,3],pointRadius:0,tension:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:isDark?'#94A3B8':'#475569',font:{size:11},boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtM(ctx.parsed.y)}`}}},
+      scales:{
+        x:{grid:{color:isDark?'rgba(30,58,95,0.3)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{size:10}}},
+        y:{grid:{color:isDark?'rgba(30,58,95,0.3)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v/1000)+'k'}}
+      }}
+  });
+}
+
+function fmtM(n){
+  if(Math.abs(n)>=1000000) return (n<0?'-':'')+'$'+Math.abs(n/1000000).toFixed(2)+'M';
+  if(Math.abs(n)>=1000) return (n<0?'-':'')+'$'+Math.round(Math.abs(n)/1000)+'k';
+  return fmt(n);
+}
+
+function formatMonth(m){
+  const[y,mo]=m.split('-');
+  return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'numeric'});
+}
+
+// ── NW HISTORY TABLE ──────────────────────────────────────
 function renderNWHistoryTable(sorted){
   const rev=[...sorted].reverse();
   const header=document.getElementById('nw-hist-header');
   const body=document.getElementById('nw-hist-body');
-  const visAccts=NW_ACCOUNTS.filter(a=>{
+  const all=getAllAccounts();
+  const visAccts=all.filter(a=>{
     if(nwWho==='combined') return true;
     if(nwWho==='mine') return a.owner==='mine'||a.owner==='joint';
     if(nwWho==='hers') return a.owner==='hers'||a.owner==='joint';
     return true;
   });
-
   header.innerHTML=`<th>Month</th>${visAccts.map(a=>`<th>${a.label}</th>`).join('')}<th>Total</th>`;
   body.innerHTML='';
   rev.forEach(entry=>{
     const total=calcNWTotal(entry,nwWho);
     const tr=document.createElement('tr');
     tr.innerHTML=`<td style="color:var(--text2)">${formatMonth(entry.month)}</td>
-      ${visAccts.map(a=>`<td style="color:${parseFloat(entry[a.id])>=0?'var(--text)':'var(--red)'}">${entry[a.id]?fmt(parseFloat(entry[a.id])):'—'}</td>`).join('')}
+      ${visAccts.map(a=>{
+        const rv=parseFloat(entry[a.id])||0;
+        const dv=(a.owner==='joint'&&nwWho!=='combined')?rv/2:rv;
+        return`<td style="color:${dv>=0?'var(--text)':'var(--red)'}">${entry[a.id]?fmt(dv):'—'}</td>`;
+      }).join('')}
       <td style="color:${total>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(total)}</td>`;
     body.appendChild(tr);
   });
-}
-
-function formatMonth(m){
-  const[y,mo]=m.split('-');
-  return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'numeric'});
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2087,30 +2409,70 @@ function openNWModal(){
   const history=getNWHistory();
   const latest=history.length?[...history].sort((a,b)=>a.month.localeCompare(b.month)).pop():{};
 
+  const jointFields=document.getElementById('nw-joint-fields');
   const myFields=document.getElementById('nw-my-fields');
   const herFields=document.getElementById('nw-her-fields');
-  myFields.innerHTML='';herFields.innerHTML='';
+  const myCustom=document.getElementById('nw-my-custom');
+  const herCustom=document.getElementById('nw-her-custom');
+  jointFields.innerHTML='';myFields.innerHTML='';herFields.innerHTML='';
+  myCustom.innerHTML='';herCustom.innerHTML='';
 
   NW_ACCOUNTS.forEach(acct=>{
     const div=document.createElement('div');div.className='mfield';
-    const lbl=acct.owner==='joint'?`${acct.icon} ${acct.label} <span style="font-size:0.68rem;color:var(--text3)">(full balance)</span>`:
-              `${acct.icon} ${acct.label}`;
+    const lbl=acct.owner==='joint'
+      ?`${acct.icon} ${acct.label} <span style="font-size:0.66rem;color:var(--text3)">(full balance)</span>`
+      :`${acct.icon} ${acct.label}`;
     div.innerHTML=`<label>${lbl}</label>
       <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
-    if(acct.owner==='joint') myFields.appendChild(div);
+    if(acct.owner==='joint') jointFields.appendChild(div);
     else if(acct.owner==='hers') herFields.appendChild(div);
     else myFields.appendChild(div);
   });
+
+  // Restore custom accounts
+  const customs=nwCustomAccounts;
+  customs.filter(a=>a.owner==='mine').forEach(a=>renderCustomField(a,latest,myCustom));
+  customs.filter(a=>a.owner==='hers').forEach(a=>renderCustomField(a,latest,herCustom));
+
   document.getElementById('nw-modal-overlay').classList.add('open');
+}
+
+function renderCustomField(acct,latest,container){
+  const div=document.createElement('div');div.className='mfield';
+  div.style.position='relative';
+  div.innerHTML=`<label>${acct.icon||'💰'} ${acct.label}
+    <span onclick="removeCustomAccount('${acct.id}')" style="color:var(--red);cursor:pointer;margin-left:8px;font-size:0.7rem">✕ remove</span>
+  </label>
+  <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
+  container.appendChild(div);
+}
+
+let customCounter=0;
+function addCustomAccount(owner){
+  const name=prompt('Account name (e.g. Savings Bond, Car Value, HELOC):');
+  if(!name||!name.trim()) return;
+  const id=`custom_${owner}_${++customCounter}_${Date.now()}`;
+  const acct={id,label:name.trim(),icon:'💰',owner};
+  nwCustomAccounts.push(acct);
+  localStorage.setItem('nw_custom_accounts',JSON.stringify(nwCustomAccounts));
+  // Re-open modal to show new field
+  openNWModal();
+}
+
+function removeCustomAccount(id){
+  nwCustomAccounts=nwCustomAccounts.filter(a=>a.id!==id);
+  localStorage.setItem('nw_custom_accounts',JSON.stringify(nwCustomAccounts));
+  openNWModal();
 }
 function closeNWModal(){document.getElementById('nw-modal-overlay').classList.remove('open');}
 function saveNWEntry(){
   const month=document.getElementById('nw-entry-month').value;
   if(!month)return;
   const entry={month};
-  NW_ACCOUNTS.forEach(a=>{
-    const v=parseFloat(document.getElementById('nw-field-'+a.id).value);
-    if(!isNaN(v))entry[a.id]=v;
+  // Save all standard + custom accounts
+  getAllAccounts().forEach(a=>{
+    const el=document.getElementById('nw-field-'+a.id);
+    if(el){const v=parseFloat(el.value);if(!isNaN(v))entry[a.id]=v;}
   });
   const history=getNWHistory().filter(e=>e.month!==month);
   history.push(entry);
@@ -2161,5 +2523,4 @@ function clean(name){
 </script>
 </body>
 </html>
-
 
