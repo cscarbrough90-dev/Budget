@@ -2071,7 +2071,7 @@ function renderNW(){
     document.getElementById('nw-mom-label').textContent='no prior data yet';
   }
 
-  // KPI cards
+  // KPI cards — use getAllAccounts() so custom accounts (loans etc) are included
   const allAccts=getAllAccounts();
   let assets=0,liabs=0,retire=0,liquid=0;
   allAccts.forEach(a=>{
@@ -2079,9 +2079,14 @@ function renderNW(){
     if(nwWho==='hers'&&a.owner==='mine') return;
     let v=parseFloat(latest[a.id])||0;
     if(a.owner==='joint'&&nwWho!=='combined') v=v/2;
-    if(v>0) assets+=v; else liabs+=v;
-    if(['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'].includes(a.id)) retire+=v;
-    if(['my_checking','my_hysa','her_checking','her_hysa','joint'].includes(a.id)) liquid+=Math.max(0,v);
+    if(v>0) assets+=v;
+    else if(v<0) liabs+=v; // negatives = liabilities
+    // Retirement: standard retirement IDs + any custom account labeled retirement-ish
+    const retireIds=['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'];
+    if(retireIds.includes(a.id)) retire+=Math.max(0,v);
+    // Liquid: cash/savings accounts (positive only)
+    const liquidIds=['my_checking','my_hysa','her_checking','her_hysa','joint','my_hsa','her_hsa'];
+    if(liquidIds.includes(a.id)&&v>0) liquid+=v;
   });
   document.getElementById('nwk-assets').textContent=fmt(assets);
   document.getElementById('nwk-liab').textContent=fmt(Math.abs(liabs));
@@ -2108,7 +2113,7 @@ function calcNWTotal(entry,who){
     const val=parseFloat(entry[acct.id])||0;
     if(acct.owner==='joint'){
       if(who==='combined') total+=val;
-      else total+=val/2;
+      else total+=val/2; // 50/50 split in individual views
     } else {
       if(who==='combined') total+=val;
       else if(who==='mine'&&acct.owner==='mine') total+=val;
@@ -2221,7 +2226,7 @@ function renderNWAvsl(sorted){
       if(nwWho==='hers'&&acct.owner==='mine') return;
       let v=parseFloat(e[acct.id])||0;
       if(acct.owner==='joint'&&nwWho!=='combined') v=v/2;
-      if(v<0) l+=Math.abs(v);
+      if(v<0) l+=Math.abs(v); // custom loan accounts (negative) show here
     });
     return l;
   });
@@ -2764,5 +2769,4 @@ function clean(name){
 </script>
 </body>
 </html>
-
 
