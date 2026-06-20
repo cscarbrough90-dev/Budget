@@ -554,10 +554,14 @@ body {
 #retire-config .mfield input {
   width:100%;padding:8px 12px;background:var(--surface2);
   border:1px solid var(--border2);border-radius:10px;
-  color:var(--text);font-family:var(--mono);font-size:0.88rem;outline:none;
+  color:var(--text);font-family:var(--mono);font-size:0.85rem;outline:none;
+  transition:border-color var(--transition);
 }
 #retire-config .mfield input:focus{border-color:var(--blue);}
-#retire-config .mfield label{display:block;font-size:0.72rem;font-weight:600;color:var(--text2);margin-bottom:5px;}
+#retire-config .mfield label{display:block;font-size:0.72rem;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:0.02em;}
+.rc-section-label{font-size:0.65rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.rc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px;}
+@media(max-width:760px){.rc-grid-3{grid-template-columns:1fr 1fr;}}
 
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 1100px) {
@@ -905,18 +909,88 @@ body {
     <div class="panel-title">Retirement Calculator
       <span class="pt-action" onclick="toggleRetireCalc()">Configure</span>
     </div>
-    <div id="retire-config" style="display:none;margin-bottom:20px">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px">
-        <div class="mfield"><label>Current Age</label><input type="number" id="rc-age" value="35" min="18" max="80" oninput="renderRetire()"></div>
-        <div class="mfield"><label>Target Retirement Age</label><input type="number" id="rc-retire-age" value="65" min="40" max="80" oninput="renderRetire()"></div>
-        <div class="mfield"><label>Monthly Contribution ($)</label><input type="number" id="rc-contrib" value="1000" oninput="renderRetire()"></div>
-        <div class="mfield"><label>Expected Annual Return (%)</label><input type="number" id="rc-return" value="7" step="0.5" oninput="renderRetire()"></div>
-        <div class="mfield"><label>Expected Inflation (%)</label><input type="number" id="rc-inflation" value="3" step="0.5" oninput="renderRetire()"></div>
-        <div class="mfield"><label>Monthly Income Needed (today $)</label><input type="number" id="rc-income-need" value="6000" oninput="renderRetire()"></div>
+    <div id="retire-config" style="display:none;margin-bottom:24px">
+
+      <!-- GENERAL -->
+      <div class="rc-section-label">General</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Your Current Age</label><input type="number" id="rc-age" value="35" min="18" max="80" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Target Retirement Age</label><input type="number" id="rc-retire-age" value="65" min="40" max="80" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Monthly Income Needed (today $)</label><input type="number" id="rc-income-need" value="6000" oninput="saveRC();renderRetire()"></div>
       </div>
-    </div>
+
+      <!-- RETURN SCENARIOS -->
+      <div class="rc-section-label">Return Assumptions</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Bear Case Return (%)</label><input type="number" id="rc-return-bear" value="5" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Base Case Return (%) <span style="color:var(--blue)">★</span></label><input type="number" id="rc-return" value="7" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Bull Case Return (%)</label><input type="number" id="rc-return-bull" value="9" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Expected Inflation (%)</label><input type="number" id="rc-inflation" value="3" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Safe Withdrawal Rate (%)</label><input type="number" id="rc-swr" value="4" step="0.1" oninput="saveRC();renderRetire()"></div>
+      </div>
+
+      <!-- HIS 401K -->
+      <div class="rc-section-label">Your 401k</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Your Annual Salary ($)</label><input type="number" id="rc-my-salary" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Your Contribution (%)</label><input type="number" id="rc-my-contrib-pct" value="6" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Employer Match (%)</label><input type="number" id="rc-my-match-pct" value="3" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Vested (%) of match</label><input type="number" id="rc-my-vested" value="100" min="0" max="100" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Account Type</label>
+          <select id="rc-my-401k-type" onchange="saveRC();renderRetire()" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.85rem;outline:none">
+            <option value="traditional">Traditional (pre-tax)</option>
+            <option value="roth">Roth 401k (post-tax)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- HER 401K -->
+      <div class="rc-section-label">Partner's 401k</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Partner's Annual Salary ($)</label><input type="number" id="rc-her-salary" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Her Contribution (%)</label><input type="number" id="rc-her-contrib-pct" value="6" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Employer Match (%)</label><input type="number" id="rc-her-match-pct" value="3" step="0.5" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Vested (%) of match</label><input type="number" id="rc-her-vested" value="100" min="0" max="100" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Account Type</label>
+          <select id="rc-her-401k-type" onchange="saveRC();renderRetire()" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:0.85rem;outline:none">
+            <option value="traditional">Traditional (pre-tax)</option>
+            <option value="roth">Roth 401k (post-tax)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ROTH IRA -->
+      <div class="rc-section-label">Roth IRA</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Your Monthly Roth Contribution ($)</label><input type="number" id="rc-my-roth" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Partner's Monthly Roth Contribution ($)</label><input type="number" id="rc-her-roth" value="0" oninput="saveRC();renderRetire()"></div>
+      </div>
+
+      <!-- HSA -->
+      <div class="rc-section-label">HSA <span style="font-size:0.7rem;color:var(--text3);font-weight:400;letter-spacing:0">(enter total monthly going in — your contributions + employer)</span></div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Your Total Monthly HSA ($)</label><input type="number" id="rc-my-hsa" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Partner's Total Monthly HSA ($)</label><input type="number" id="rc-her-hsa" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>% of HSA Invested (yours)</label><input type="number" id="rc-my-hsa-invest-pct" value="100" min="0" max="100" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>% of HSA Invested (hers)</label><input type="number" id="rc-her-hsa-invest-pct" value="50" min="0" max="100" oninput="saveRC();renderRetire()"></div>
+      </div>
+
+      <!-- EXTRA -->
+      <div class="rc-section-label">Extra / One-Time Contributions</div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Annual Bonus/Windfall to Retirement ($)</label><input type="number" id="rc-extra-annual" value="0" oninput="saveRC();renderRetire()"></div>
+      </div>
+
+      <!-- SOCIAL SECURITY -->
+      <div class="rc-section-label">Social Security <span style="font-size:0.7rem;color:var(--text3);font-weight:400;letter-spacing:0">(find your estimate at ssa.gov)</span></div>
+      <div class="rc-grid-3">
+        <div class="mfield"><label>Your Estimated Monthly SS ($)</label><input type="number" id="rc-my-ss" value="0" oninput="saveRC();renderRetire()"></div>
+        <div class="mfield"><label>Partner's Estimated Monthly SS ($)</label><input type="number" id="rc-her-ss" value="0" oninput="saveRC();renderRetire()"></div>
+      </div>
+
+    </div><!-- /retire-config -->
     <div id="retire-results"></div>
-    <div style="height:200px;margin-top:20px"><canvas id="retire-chart"></canvas></div>
+    <div style="height:220px;margin-top:20px"><canvas id="retire-chart"></canvas></div>
   </div>
 
   <!-- HISTORY TABLE -->
@@ -2208,113 +2282,280 @@ function renderNWAccountGrid(latest,prev){
 // ── RETIREMENT CALCULATOR ─────────────────────────────────
 function toggleRetireCalc(){
   const el=document.getElementById('retire-config');
-  el.style.display=el.style.display==='none'?'block':'none';
+  const isHidden=el.style.display==='none'||el.style.display==='';
+  el.style.display=isHidden?'block':'none';
+  if(isHidden) loadRC();
+}
+
+// Save/load retire config to localStorage
+function saveRC(){
+  const ids=['rc-age','rc-retire-age','rc-income-need','rc-return-bear','rc-return',
+    'rc-return-bull','rc-inflation','rc-swr',
+    'rc-my-salary','rc-my-contrib-pct','rc-my-match-pct','rc-my-vested','rc-my-401k-type',
+    'rc-her-salary','rc-her-contrib-pct','rc-her-match-pct','rc-her-vested','rc-her-401k-type',
+    'rc-my-roth','rc-her-roth',
+    'rc-my-hsa','rc-her-hsa','rc-my-hsa-invest-pct','rc-her-hsa-invest-pct',
+    'rc-extra-annual','rc-my-ss','rc-her-ss'];
+  const cfg={};
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)cfg[id]=el.value;});
+  localStorage.setItem('retire_config',JSON.stringify(cfg));
+}
+function loadRC(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('retire_config')||'{}');
+    Object.entries(cfg).forEach(([id,val])=>{
+      const el=document.getElementById(id);if(el)el.value=val;
+    });
+  }catch{}
+}
+
+function rcVal(id,def=0){
+  const el=document.getElementById(id);
+  if(!el)return def;
+  const v=parseFloat(el.value);
+  return isNaN(v)?def:v;
+}
+function rcStr(id,def=''){
+  const el=document.getElementById(id);
+  return el?el.value:def;
 }
 
 function renderRetire(){
   const history=getNWHistory();
-  if(!history.length) return;
+  const res=document.getElementById('retire-results');
+  if(!history.length){
+    res.innerHTML='<div style="color:var(--text3);font-size:0.83rem;padding:12px 0">Log your first net worth entry to activate the retirement calculator.</div>';
+    return;
+  }
   const sorted=[...history].sort((a,b)=>a.month.localeCompare(b.month));
   const latest=sorted[sorted.length-1];
 
-  // Get current retirement assets from latest entry
-  const retireIds=['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'];
-  let currentRetire=0;
-  retireIds.forEach(id=>{ currentRetire+=Math.max(0,parseFloat(latest[id])||0); });
+  // ── Pull current balances ──────────────────────────────
+  const my401k  = Math.max(0,parseFloat(latest['my_401k'])||0);
+  const myRoth  = Math.max(0,parseFloat(latest['my_roth'])||0);
+  const myFid   = Math.max(0,parseFloat(latest['my_fidelity'])||0);
+  const myHSA   = Math.max(0,parseFloat(latest['my_hsa'])||0);
+  const her401k = Math.max(0,parseFloat(latest['her_401k'])||0);
+  const herRoth = Math.max(0,parseFloat(latest['her_roth'])||0);
+  const herFid  = Math.max(0,parseFloat(latest['her_fidelity'])||0);
+  const herHSA  = Math.max(0,parseFloat(latest['her_hsa'])||0);
 
-  const age=parseInt(document.getElementById('rc-age')?.value)||35;
-  const retireAge=parseInt(document.getElementById('rc-retire-age')?.value)||65;
-  const monthlyContrib=parseFloat(document.getElementById('rc-contrib')?.value)||1000;
-  const annualReturn=parseFloat(document.getElementById('rc-return')?.value)||7;
-  const inflation=parseFloat(document.getElementById('rc-inflation')?.value)||3;
-  const monthlyNeed=parseFloat(document.getElementById('rc-income-need')?.value)||6000;
+  // ── Config inputs ──────────────────────────────────────
+  const age         = rcVal('rc-age',35);
+  const retireAge   = rcVal('rc-retire-age',65);
+  const incomeNeed  = rcVal('rc-income-need',6000);
+  const rBear       = rcVal('rc-return-bear',5)/100/12;
+  const rBase       = rcVal('rc-return',7)/100/12;
+  const rBull       = rcVal('rc-return-bull',9)/100/12;
+  const inflation   = rcVal('rc-inflation',3)/100;
+  const swr         = rcVal('rc-swr',4)/100;
+  const years       = retireAge - age;
+  const months      = years * 12;
 
-  const years=retireAge-age;
-  const r=annualReturn/100/12;
-  const months=years*12;
+  // 401k monthly contributions
+  const mySalary      = rcVal('rc-my-salary',0)/12;
+  const myContribPct  = rcVal('rc-my-contrib-pct',6)/100;
+  const myMatchPct    = rcVal('rc-my-match-pct',3)/100;
+  const myVested      = rcVal('rc-my-vested',100)/100;
+  const my401kMonthly = mySalary*(myContribPct + myMatchPct*myVested);
 
-  // Future value of current savings + contributions
-  const fvCurrent=currentRetire*Math.pow(1+r,months);
-  const fvContrib=monthlyContrib*((Math.pow(1+r,months)-1)/r);
-  const projectedBalance=fvCurrent+fvContrib;
+  const herSalary     = rcVal('rc-her-salary',0)/12;
+  const herContribPct = rcVal('rc-her-contrib-pct',6)/100;
+  const herMatchPct   = rcVal('rc-her-match-pct',3)/100;
+  const herVested     = rcVal('rc-her-vested',100)/100;
+  const her401kMonthly= herSalary*(herContribPct + herMatchPct*herVested);
 
-  // Inflation-adjusted income need at retirement
-  const inflationFactor=Math.pow(1+inflation/100,years);
-  const futureMonthlyNeed=monthlyNeed*inflationFactor;
-  const neededNestEgg=futureMonthlyNeed*12/0.04; // 4% rule
+  // Roth IRA monthly
+  const myRothMonthly  = rcVal('rc-my-roth',0);
+  const herRothMonthly = rcVal('rc-her-roth',0);
 
-  // Gap
-  const gap=projectedBalance-neededNestEgg;
-  const onTrack=gap>=0;
+  // HSA monthly
+  const myHSAMonthly      = rcVal('rc-my-hsa',0);
+  const herHSAMonthly     = rcVal('rc-her-hsa',0);
+  const myHSAInvestPct    = rcVal('rc-my-hsa-invest-pct',100)/100;
+  const herHSAInvestPct   = rcVal('rc-her-hsa-invest-pct',50)/100;
+  const myHSAInvested     = myHSAMonthly * myHSAInvestPct;
+  const herHSAInvested    = herHSAMonthly * herHSAInvestPct;
 
-  // Monthly needed to close gap
-  let monthlyNeeded=0;
-  if(!onTrack){
-    monthlyNeeded=Math.abs(gap)/((Math.pow(1+r,months)-1)/r);
+  // Extra annual → monthly
+  const extraMonthly = rcVal('rc-extra-annual',0)/12;
+
+  // Social Security monthly
+  const mySS  = rcVal('rc-my-ss',0);
+  const herSS = rcVal('rc-her-ss',0);
+  const totalSS = mySS + herSS;
+
+  // Total monthly going in
+  const totalMonthly = my401kMonthly + her401kMonthly + myRothMonthly + herRothMonthly +
+                       myHSAInvested + herHSAInvested + extraMonthly;
+
+  // ── FV calculator ──────────────────────────────────────
+  function fv(currentBal, monthly, r, m){
+    if(r===0) return currentBal + monthly*m;
+    return currentBal*Math.pow(1+r,m) + monthly*((Math.pow(1+r,m)-1)/r);
   }
 
-  // Monthly income at retirement (4% rule)
-  const monthlyAtRetire=projectedBalance*0.04/12;
+  // Project each bucket separately at base rate
+  function projectBuckets(r){
+    const f401k  = fv(my401k+her401k, my401kMonthly+her401kMonthly, r, months);
+    const fRoth  = fv(myRoth+herRoth, myRothMonthly+herRothMonthly, r, months);
+    const fFid   = fv(myFid+herFid, 0, r, months); // existing fidelity grows
+    const fHSA   = fv((myHSA*myHSAInvestPct)+(herHSA*herHSAInvestPct),
+                      myHSAInvested+herHSAInvested, r, months);
+    const fExtra = fv(0, extraMonthly, r, months);
+    return {f401k, fRoth, fFid, fHSA, fExtra,
+            total: f401k+fRoth+fFid+fHSA+fExtra};
+  }
 
-  const res=document.getElementById('retire-results');
-  res.innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
-      <div class="kpi-card" style="padding:16px">
-        <div class="kpi-accent ${onTrack?'green':'red'}"></div>
-        <div class="kpi-label">Projected at ${retireAge}</div>
-        <div class="kpi-value" style="font-size:1.3rem;color:${onTrack?'var(--green)':'var(--amber)'}">${fmtM(projectedBalance)}</div>
+  const bear = projectBuckets(rBear);
+  const base = projectBuckets(rBase);
+  const bull = projectBuckets(rBull);
+
+  // HSA medical reserve — $300k in today's dollars, inflation-adjusted
+  const hsaMedReserve = 300000 * Math.pow(1+inflation, years);
+  const hsaOverflow   = Math.max(0, base.fHSA - hsaMedReserve);
+
+  // Inflation-adjusted income need
+  const futureIncomeNeed = incomeNeed * Math.pow(1+inflation, years) * 12;
+  const neededNestEgg = Math.max(0, (futureIncomeNeed - totalSS*12) / swr);
+
+  // Gap
+  const gap = base.total - neededNestEgg;
+  const onTrack = gap >= 0;
+
+  // Monthly income at retirement from investments
+  const investIncome = base.total * swr / 12;
+  const totalRetireIncome = investIncome + totalSS;
+
+  // Monthly needed to close gap
+  let addlMonthlyNeeded = 0;
+  if(!onTrack && rBase > 0){
+    addlMonthlyNeeded = Math.abs(gap) / ((Math.pow(1+rBase,months)-1)/rBase);
+  }
+
+  // ── RENDER ─────────────────────────────────────────────
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+
+  res.innerHTML = `
+    <!-- SCENARIO CARDS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="kpi-card" style="padding:16px;opacity:0.8">
+        <div class="kpi-accent red"></div>
+        <div class="kpi-label">Bear Case (${rcVal('rc-return-bear',5)}%)</div>
+        <div class="kpi-value" style="font-size:1.2rem;color:var(--amber)">${fmtM(bear.total)}</div>
+        <div class="kpi-sub">${bear.total>=neededNestEgg?'✓ On track':'✗ Short '+fmtM(neededNestEgg-bear.total)}</div>
       </div>
-      <div class="kpi-card" style="padding:16px">
-        <div class="kpi-accent purple"></div>
-        <div class="kpi-label">Nest Egg Needed</div>
-        <div class="kpi-value" style="font-size:1.3rem">${fmtM(neededNestEgg)}</div>
-        <div class="kpi-sub">4% withdrawal rule</div>
+      <div class="kpi-card" style="padding:16px;border-color:var(--blue)">
+        <div class="kpi-accent"></div>
+        <div class="kpi-label">Base Case (${rcVal('rc-return',7)}%) ★</div>
+        <div class="kpi-value" style="font-size:1.2rem;color:${onTrack?'var(--green)':'var(--amber)'}">${fmtM(base.total)}</div>
+        <div class="kpi-sub">${onTrack?'✓ On track — '+fmtM(gap)+' surplus':'✗ Short '+fmtM(Math.abs(gap))}</div>
       </div>
-      <div class="kpi-card" style="padding:16px">
-        <div class="kpi-accent ${onTrack?'green':'amber'}"></div>
-        <div class="kpi-label">Monthly Income</div>
-        <div class="kpi-value" style="font-size:1.3rem;color:var(--green)">${fmt(monthlyAtRetire)}</div>
-        <div class="kpi-sub">at 4% withdrawal</div>
-      </div>
-      <div class="kpi-card" style="padding:16px">
-        <div class="kpi-accent ${onTrack?'green':'red'}"></div>
-        <div class="kpi-label">${onTrack?'Surplus':'Gap'}</div>
-        <div class="kpi-value" style="font-size:1.3rem;color:${onTrack?'var(--green)':'var(--red)'}">${onTrack?'+':''}${fmtM(gap)}</div>
-        ${!onTrack?`<div class="kpi-sub">Need +${fmt(monthlyNeeded)}/mo</div>`:''}
+      <div class="kpi-card" style="padding:16px;opacity:0.8">
+        <div class="kpi-accent green"></div>
+        <div class="kpi-label">Bull Case (${rcVal('rc-return-bull',9)}%)</div>
+        <div class="kpi-value" style="font-size:1.2rem;color:var(--green)">${fmtM(bull.total)}</div>
+        <div class="kpi-sub">✓ ${fmtM(bull.total-neededNestEgg)} surplus</div>
       </div>
     </div>
+
+    <!-- BREAKDOWN TABLE -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div style="background:var(--surface2);border-radius:12px;padding:16px">
+        <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px">Projected Breakdown at ${retireAge}</div>
+        ${[
+          ['401k (combined)', base.f401k, '#3B82F6'],
+          ['Roth IRA (combined)', base.fRoth, '#10B981'],
+          ['Fidelity / Brokerage', base.fFid, '#F59E0B'],
+          ['HSA — medical reserve', Math.min(base.fHSA, hsaMedReserve), '#EF4444'],
+          ['HSA — retirement overflow', hsaOverflow, '#34D399'],
+          ['Extra contributions', base.fExtra, '#8B5CF6'],
+        ].map(([label,val,color])=>val>0?`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>${label}</span>
+            <span style="font-family:var(--mono);font-weight:600">${fmtM(val)}</span>
+          </div>`:'').join('')}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:0.83rem;font-weight:700">
+          <span>Total</span><span style="font-family:var(--mono);color:${onTrack?'var(--green)':'var(--amber)'}">${fmtM(base.total)}</span>
+        </div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:12px;padding:16px">
+        <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px">Monthly Income at Retirement</div>
+        ${[
+          ['Investment income ('+Math.round(swr*100)+'% SWR)', investIncome, '#3B82F6'],
+          mySS>0?['Your Social Security', mySS, '#10B981']:null,
+          herSS>0?["Partner's Social Security", herSS, '#EC4899']:null,
+        ].filter(Boolean).map(([label,val,color])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.8rem">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>${label}</span>
+            <span style="font-family:var(--mono);font-weight:600">${fmt(val)}/mo</span>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:0.83rem;font-weight:700">
+          <span>Total Monthly</span><span style="font-family:var(--mono);color:${totalRetireIncome>=incomeNeed?'var(--green)':'var(--amber)'}">${fmt(totalRetireIncome)}/mo</span>
+        </div>
+        <div style="margin-top:8px;font-size:0.75rem;color:var(--text3)">Target: ${fmt(incomeNeed)}/mo (today's dollars)</div>
+        <div style="font-size:0.75rem;color:var(--text3)">Inflation-adjusted target: ${fmt(futureIncomeNeed/12)}/mo</div>
+      </div>
+    </div>
+
+    <!-- CONTRIBUTIONS SUMMARY -->
+    <div style="background:var(--surface2);border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:0.8rem">
+      <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Monthly Contributions Going In</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        ${[
+          ['Your 401k', my401kMonthly],
+          ["Partner's 401k", her401kMonthly],
+          ['Your Roth IRA', myRothMonthly],
+          ["Partner's Roth IRA", herRothMonthly],
+          ['Your HSA (invested)', myHSAInvested],
+          ["Partner's HSA (invested)", herHSAInvested],
+          ['Extra / Bonus', extraMonthly],
+          ['Total', totalMonthly],
+        ].map(([label,val],i)=>`
+          <div style="background:var(--surface3);border-radius:8px;padding:10px;${i===7?'border:1px solid var(--blue)':''}">
+            <div style="font-size:0.65rem;color:var(--text3);margin-bottom:4px">${label}</div>
+            <div style="font-family:var(--mono);font-weight:600;color:${i===7?'var(--blue)':'var(--text)'}">${fmt(val)}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
     <div style="padding:14px 18px;border-radius:10px;background:${onTrack?'rgba(16,185,129,0.08)':'rgba(245,158,11,0.08)'};border:1px solid ${onTrack?'rgba(16,185,129,0.2)':'rgba(245,158,11,0.2)'};font-size:0.83rem;color:var(--text2)">
       ${onTrack
-        ? `✓ At your current pace you're projected to retire at <strong style="color:var(--green)">${retireAge}</strong> with <strong style="color:var(--green)">${fmtM(projectedBalance)}</strong>. That covers <strong style="color:var(--green)">${fmt(monthlyAtRetire)}/mo</strong> in today's dollars — ${monthlyAtRetire>=monthlyNeed?'more than':'close to'} your target of ${fmt(monthlyNeed)}/mo.`
-        : `⚠ You're projected to be <strong style="color:var(--red)">${fmtM(Math.abs(gap))}</strong> short of your retirement goal. To close this gap, increase monthly contributions by <strong style="color:var(--amber)">${fmt(monthlyNeeded)}</strong>, delay retirement by a few years, or reduce your target monthly income.`
+        ? `✓ On track to retire at <strong style="color:var(--green)">${retireAge}</strong> with <strong style="color:var(--green)">${fmtM(base.total)}</strong>. That generates <strong style="color:var(--green)">${fmt(totalRetireIncome)}/mo</strong> — ${totalRetireIncome>=incomeNeed?`above`:`near`} your target of <strong>${fmt(incomeNeed)}/mo</strong>.${hsaOverflow>0?` Your HSA projects to cover healthcare costs with <strong style="color:var(--green)">${fmtM(hsaOverflow)}</strong> to spare.`:''}`
+        : `⚠ At current pace you'll be <strong style="color:var(--red)">${fmtM(Math.abs(gap))}</strong> short. To close the gap: add <strong style="color:var(--amber)">${fmt(addlMonthlyNeeded)}/mo</strong> in contributions, delay retirement by a few years, or reduce your income target. Your bear case is ${bear.total>=neededNestEgg?'still on track ✓':'also short — consider increasing contributions soon'}.`
       }
     </div>`;
 
-  // Projection chart
-  const chartLabels=[],balData=[],needData=[];
+  // ── PROJECTION CHART ────────────────────────────────────
+  const chartLabels=[], bearData=[], baseData=[], bullData=[], needData=[];
   for(let y=0;y<=years;y++){
     chartLabels.push(age+y);
     const m=y*12;
-    const bal=currentRetire*Math.pow(1+r,m)+monthlyContrib*((Math.pow(1+r,m)-1)/r);
-    balData.push(Math.round(bal));
+    bearData.push(Math.round(fv(my401k+her401k+myRoth+herRoth+myFid+herFid+(myHSA*myHSAInvestPct)+(herHSA*herHSAInvestPct), totalMonthly, rBear, m)));
+    baseData.push(Math.round(fv(my401k+her401k+myRoth+herRoth+myFid+herFid+(myHSA*myHSAInvestPct)+(herHSA*herHSAInvestPct), totalMonthly, rBase, m)));
+    bullData.push(Math.round(fv(my401k+her401k+myRoth+herRoth+myFid+herFid+(myHSA*myHSAInvestPct)+(herHSA*herHSAInvestPct), totalMonthly, rBull, m)));
     needData.push(Math.round(neededNestEgg));
   }
-  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+
+  const gridColor = isDark?'rgba(30,58,95,0.4)':'rgba(203,213,225,0.4)';
+  const tickColor = isDark?'#4B6078':'#94A3B8';
   if(retireChart)retireChart.destroy();
   retireChart=new Chart(document.getElementById('retire-chart'),{
     type:'line',
     data:{labels:chartLabels,datasets:[
-      {label:'Projected Balance',data:balData,borderColor:'#3B82F6',backgroundColor:'rgba(59,130,246,0.1)',
-        fill:true,tension:0.3,borderWidth:2,pointRadius:0},
-      {label:'Target Nest Egg',data:needData,borderColor:'#EF4444',backgroundColor:'transparent',
-        borderWidth:1.5,borderDash:[6,3],pointRadius:0,tension:0}
+      {label:'Bull ('+rcVal('rc-return-bull',9)+'%)',data:bullData,borderColor:'rgba(16,185,129,0.5)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0.3},
+      {label:'Base ('+rcVal('rc-return',7)+'%)',data:baseData,borderColor:'#3B82F6',backgroundColor:'rgba(59,130,246,0.08)',fill:true,borderWidth:2.5,pointRadius:0,tension:0.3},
+      {label:'Bear ('+rcVal('rc-return-bear',5)+'%)',data:bearData,borderColor:'rgba(245,158,11,0.5)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0.3},
+      {label:'Target Nest Egg',data:needData,borderColor:'#EF4444',backgroundColor:'transparent',borderWidth:1.5,borderDash:[8,4],pointRadius:0},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{color:isDark?'#94A3B8':'#475569',font:{size:11},boxWidth:10}},
-        tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtM(ctx.parsed.y)}`}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtM(ctx.parsed.y)}`}}},
       scales:{
-        x:{grid:{color:isDark?'rgba(30,58,95,0.3)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{size:10}}},
-        y:{grid:{color:isDark?'rgba(30,58,95,0.3)':'rgba(203,213,225,0.4)'},ticks:{color:isDark?'#4B6078':'#94A3B8',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v/1000)+'k'}}
+        x:{grid:{color:gridColor},ticks:{color:tickColor,font:{size:10},maxTicksLimit:12}},
+        y:{grid:{color:gridColor},ticks:{color:tickColor,font:{family:'JetBrains Mono',size:10},callback:v=>'$'+Math.round(v/1000)+'k'}}
       }}
   });
 }
@@ -2523,4 +2764,5 @@ function clean(name){
 </script>
 </body>
 </html>
+
 
