@@ -945,30 +945,72 @@ const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKT
 const FIXED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?gid=75479951&single=true&output=csv';
 
 const CAT_COLORS = {
-  'Groceries':'#10B981','Food Delivery':'#F59E0B','Dining Out':'#EF4444',
-  'Coffee & Cafes':'#C8A96E','Nightlife & Bars':'#8B5CF6','Liquor Store':'#7C3AED',
-  'Amazon':'#FF9900','Clothing & Apparel':'#EC4899','Online Shopping':'#F472B6',
-  'Streaming':'#6EE7B7','Movies & Events':'#3B82F6','Gaming':'#7C5CBF',
-  'Utilities & Bills':'#38BDF8','Laundry':'#67E8F9','Home & Auto':'#A3E635',
-  'Home & Garden':'#84CC16','Gas':'#FCD34D','Parking':'#FCA5A1',
-  'Rideshare & Transit':'#FB923C','Travel':'#A78BFA','Medical':'#FCA5A5',
-  'Fitness':'#34D399','Pets':'#FDBA74','Insurance':'#94A3B8',
-  'Fees & Taxes':'#64748B','Subscriptions':'#818CF8','Other':'#475569',
+  'Groceries':         '#10B981',
+  'Food Delivery':     '#F59E0B',
+  'Dining Out':        '#EF4444',
+  'Coffee & Cafes':    '#C8A96E',
+  'Nightlife & Bars':  '#8B5CF6',
+  'Liquor Store':      '#7C3AED',
+  'Shopping':          '#EC4899',
+  'Clothing & Apparel':'#F472B6',
+  'Subscriptions':     '#6EE7B7',
+  'Entertainment':     '#3B82F6',
+  'Utilities & Bills': '#38BDF8',
+  'Gas':               '#FCD34D',
+  'Transportation':    '#FB923C',
+  'Travel':            '#A78BFA',
+  'Health & Medical':  '#FCA5A5',
+  'Fitness':           '#34D399',
+  'Pets':              '#FDBA74',
+  'Insurance':         '#94A3B8',
+  'Home & Auto':       '#A3E635',
+  'Other':             '#475569',
+};
+
+const DEFAULT_BUDGETS = {
+  __total: 9000,
+  'Groceries': 500,
+  'Dining Out': 275,
+  'Food Delivery': 150,
+  'Coffee & Cafes': 75,
+  'Shopping': 200,
+  'Clothing & Apparel': 125,
+  'Entertainment': 100,
+  'Subscriptions': 80,
+  'Gas': 150,
+  'Transportation': 60,
+  'Nightlife & Bars': 100,
+  'Liquor Store': 50,
+  'Utilities & Bills': 360,
+  'Health & Medical': 175,
+  'Fitness': 55,
+  'Pets': 100,
+  'Home & Auto': 100,
+  'Insurance': 130,
+  'Travel': 250,
+  'Other': 60,
 };
 
 const NW_ACCOUNTS = [
-  { id:'checking',      label:'Checking',       icon:'🏦', owner:'mine' },
-  { id:'joint',         label:'Joint Checking',  icon:'🤝', owner:'joint' },
-  { id:'savings_hysa',  label:'HYSA',            icon:'📈', owner:'mine' },
-  { id:'k401',          label:'401k',            icon:'🏛️', owner:'mine' },
-  { id:'hsa',           label:'HSA',             icon:'🏥', owner:'mine' },
-  { id:'fidelity',      label:'Fidelity',        icon:'📊', owner:'mine' },
-  { id:'m1',            label:'M1 Finance',      icon:'💹', owner:'mine' },
-  { id:'crypto',        label:'Crypto',          icon:'₿',  owner:'mine' },
-  { id:'her_checking',  label:'Her Checking',    icon:'🏦', owner:'hers' },
-  { id:'her_savings',   label:'Her Savings',     icon:'💰', owner:'hers' },
-  { id:'her_401k',      label:'Her 401k',        icon:'🏛️', owner:'hers' },
-  { id:'her_other',     label:'Her Other',       icon:'📊', owner:'hers' },
+  // ── JOINT (combined only, split 50/50 in individual views) ──
+  { id:'joint',          label:'Joint Checking',  icon:'🤝', owner:'joint' },
+
+  // ── HIS accounts ──
+  { id:'my_checking',    label:'Checking',        icon:'🏦', owner:'mine' },
+  { id:'my_hysa',        label:'HYSA',            icon:'📈', owner:'mine' },
+  { id:'my_401k',        label:'401k',            icon:'🏛️', owner:'mine' },
+  { id:'my_hsa',         label:'HSA',             icon:'🏥', owner:'mine' },
+  { id:'my_fidelity',    label:'Fidelity',        icon:'📊', owner:'mine' },
+  { id:'my_m1',          label:'M1 Finance',      icon:'💹', owner:'mine' },
+  { id:'my_crypto',      label:'Crypto',          icon:'₿',  owner:'mine' },
+
+  // ── HERS accounts (mirrors his, Roth IRA instead of 401k) ──
+  { id:'her_checking',   label:'Checking',        icon:'🏦', owner:'hers' },
+  { id:'her_hysa',       label:'HYSA',            icon:'📈', owner:'hers' },
+  { id:'her_roth',       label:'Roth IRA',        icon:'🏛️', owner:'hers' },
+  { id:'her_hsa',        label:'HSA',             icon:'🏥', owner:'hers' },
+  { id:'her_fidelity',   label:'Fidelity',        icon:'📊', owner:'hers' },
+  { id:'her_crypto',     label:'Crypto',          icon:'₿',  owner:'hers' },
 ];
 
 const RECURRING_KEYWORDS = ['SPOTIFY','APPLE.COM/BILL','YOUTUBE','PEACOCK','HELP.MAX','HELP.HBOMAX',
@@ -1880,17 +1922,30 @@ function renderNW(){
   // Account cards
   const grid=document.getElementById('nw-accounts-grid');grid.innerHTML='';
   NW_ACCOUNTS.forEach(acct=>{
-    if(nwWho==='mine'&&acct.owner==='hers')return;
-    if(nwWho==='hers'&&(acct.owner==='mine'||acct.owner==='joint'))return;
-    const val=parseFloat(latest[acct.id])||0;
-    const prevVal=prev?parseFloat(prev[acct.id])||0:null;
-    const change=prevVal!==null?val-prevVal:null;
+    // Visibility rules
+    if(nwWho==='mine'&&acct.owner==='hers') return;
+    if(nwWho==='hers'&&acct.owner==='mine') return;
+    if(nwWho!=='combined'&&acct.owner==='joint'){
+      // Show joint in individual views but with split value
+    }
+
+    const rawVal=parseFloat(latest[acct.id])||0;
+    // For individual views show 50/50 of joint
+    const displayVal=(acct.owner==='joint'&&nwWho!=='combined')?rawVal/2:rawVal;
+    const prevRaw=prev?parseFloat(prev[acct.id])||0:null;
+    const prevDisplay=prevRaw!==null?((acct.owner==='joint'&&nwWho!=='combined')?prevRaw/2:prevRaw):null;
+    const change=prevDisplay!==null?displayVal-prevDisplay:null;
+
+    const ownerLabel=acct.owner==='joint'
+      ? (nwWho==='combined'?'Joint (full)':'Joint (your 50%)')
+      : acct.owner==='hers'?'Hers':'Mine';
+
     const card=document.createElement('div');card.className='acct-card';
     card.innerHTML=`
       <div class="acct-icon">${acct.icon}</div>
       <div class="acct-name">${acct.label}</div>
-      <div class="acct-value ${val>=0?'pos':'neg'}">${fmt(val)}</div>
-      <div class="acct-owner">${acct.owner==='joint'?'Joint':acct.owner==='hers'?'Partner':'Mine'}</div>
+      <div class="acct-value ${displayVal>=0?'pos':'neg'}">${fmt(displayVal)}</div>
+      <div class="acct-owner">${ownerLabel}</div>
       ${change!==null?`<div class="acct-change ${change>=0?'pos':'neg'}">${change>=0?'▲':'▼'} ${fmt(Math.abs(change))}</div>`:''}`;
     grid.appendChild(card);
   });
@@ -1902,9 +1957,17 @@ function renderNW(){
 function calcNWTotal(entry,who){
   let total=0;
   NW_ACCOUNTS.forEach(acct=>{
-    if(who==='mine'&&acct.owner==='hers')return;
-    if(who==='hers'&&(acct.owner==='mine'||acct.owner==='joint'))return;
-    total+=parseFloat(entry[acct.id])||0;
+    const val=parseFloat(entry[acct.id])||0;
+    if(acct.owner==='joint'){
+      // Joint: full value in combined, 50/50 in individual views
+      if(who==='combined') total+=val;
+      else if(who==='mine') total+=val/2;
+      else if(who==='hers') total+=val/2;
+    } else {
+      if(who==='combined') total+=val;
+      else if(who==='mine'&&acct.owner==='mine') total+=val;
+      else if(who==='hers'&&acct.owner==='hers') total+=val;
+    }
   });
   return total;
 }
@@ -1949,7 +2012,12 @@ function renderNWHistoryTable(sorted){
   const rev=[...sorted].reverse();
   const header=document.getElementById('nw-hist-header');
   const body=document.getElementById('nw-hist-body');
-  const visAccts=NW_ACCOUNTS.filter(a=>nwWho==='combined'||(nwWho==='mine'&&a.owner!=='hers')||(nwWho==='hers'&&a.owner!=='mine'&&a.owner!=='joint'));
+  const visAccts=NW_ACCOUNTS.filter(a=>{
+    if(nwWho==='combined') return true;
+    if(nwWho==='mine') return a.owner==='mine'||a.owner==='joint';
+    if(nwWho==='hers') return a.owner==='hers'||a.owner==='joint';
+    return true;
+  });
 
   header.innerHTML=`<th>Month</th>${visAccts.map(a=>`<th>${a.label}</th>`).join('')}<th>Total</th>`;
   body.innerHTML='';
@@ -2025,9 +2093,13 @@ function openNWModal(){
 
   NW_ACCOUNTS.forEach(acct=>{
     const div=document.createElement('div');div.className='mfield';
-    div.innerHTML=`<label>${acct.icon} ${acct.label}</label>
+    const lbl=acct.owner==='joint'?`${acct.icon} ${acct.label} <span style="font-size:0.68rem;color:var(--text3)">(full balance)</span>`:
+              `${acct.icon} ${acct.label}`;
+    div.innerHTML=`<label>${lbl}</label>
       <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
-    (acct.owner==='hers'?herFields:myFields).appendChild(div);
+    if(acct.owner==='joint') myFields.appendChild(div);
+    else if(acct.owner==='hers') herFields.appendChild(div);
+    else myFields.appendChild(div);
   });
   document.getElementById('nw-modal-overlay').classList.add('open');
 }
@@ -2067,7 +2139,13 @@ function removeTrip(name){
 }
 
 // ── STORAGE HELPERS ───────────────────────────────────────
-function getBudgets(){try{return JSON.parse(localStorage.getItem('budgets')||'{}');}catch{return{};}}
+function getBudgets(){
+  try{
+    const stored=JSON.parse(localStorage.getItem('budgets')||'null');
+    if(stored&&Object.keys(stored).length>1) return stored;
+    return {...DEFAULT_BUDGETS}; // first visit — use recommended defaults
+  }catch{return {...DEFAULT_BUDGETS};}
+}
 function getBudgetHistory(){try{return JSON.parse(localStorage.getItem('budget_history')||'[]');}catch{return[];}}
 function getNWHistory(){try{return JSON.parse(localStorage.getItem('nw_history')||'[]');}catch{return[];}}
 function getTrips(){try{return JSON.parse(localStorage.getItem('trips')||'[]');}catch{return[];}}
@@ -2083,4 +2161,5 @@ function clean(name){
 </script>
 </body>
 </html>
+
 
