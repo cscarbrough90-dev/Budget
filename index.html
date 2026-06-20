@@ -200,7 +200,8 @@ body {
   background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.08));
   border: 1px solid rgba(16,185,129,0.25);
   border-radius: var(--radius-lg); padding: 16px 22px;
-  display: flex; align-items: center; gap: 20px; margin-bottom: 24px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 24px; margin-bottom: 24px; flex-wrap: wrap;
+  justify-content: flex-start;
 }
 .ib-field { display: flex; flex-direction: column; gap: 3px; }
 .ib-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); }
@@ -220,7 +221,8 @@ body {
 }
 
 /* ── KPI ROW ─────────────────────────────────────────────── */
-#kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+#kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
+#kpi-row .kpi-value { font-size: 1.55rem; }
 .kpi-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 20px 20px 18px;
@@ -288,6 +290,7 @@ body {
 }
 #gauge-pct { font-family: var(--mono); font-size: 2.2rem; font-weight: 600; }
 #gauge-sublabel { font-size: 0.65rem; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+.gauge-right { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .gauge-right h3 { font-family: var(--display); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
 #budget-summary-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }
 #budget-spent-big { font-family: var(--mono); font-size: 2rem; font-weight: 600; }
@@ -563,6 +566,40 @@ body {
 .rc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px;}
 @media(max-width:760px){.rc-grid-3{grid-template-columns:1fr 1fr;}}
 
+/* ── VISUAL POLISH ───────────────────────────────────────── */
+/* Scrollbar inside cat bars panel */
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Chart canvas — ensure they fill their containers */
+canvas { max-width: 100% !important; }
+
+/* Recurring badge refinement */
+#recurring-total-badge {
+  background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08));
+  border: 1px solid rgba(139,92,246,0.2); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* NW KPI row */
+#nw-kpi-row .kpi-value { font-size: 1.4rem; }
+
+/* Gauge section better proportioned */
+#gauge-section { gap: 20px; }
+
+/* Panel title sticky fix */
+.panel { position: relative; }
+
+/* Comparison strip equal height */
+#comparison-strip .cmp-card { align-items: stretch; }
+
+/* Grid responsive fixes */
+@media (max-width: 1000px) {
+  .grid-3-1 { grid-template-columns: 1fr; }
+  #comparison-strip { grid-template-columns: 1fr; }
+}
+
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media (max-width: 1100px) {
   #kpi-row { grid-template-columns: repeat(3,1fr); }
@@ -759,24 +796,27 @@ body {
   <div id="trip-section"></div>
 
   <!-- CAT BARS + DONUT -->
-  <div class="grid-3-1">
-    <div class="panel">
-      <div class="panel-title">Spending by Category <span class="pt-action" onclick="openBudgetModal()">Set targets</span></div>
+  <div class="grid-3-1 mb-24">
+    <div class="panel" style="max-height:520px;overflow-y:auto">
+      <div class="panel-title" style="position:sticky;top:0;background:var(--surface);z-index:1;padding-bottom:12px">Spending by Category <span class="pt-action" onclick="openBudgetModal()">Set targets</span></div>
       <div id="cat-bars"></div>
     </div>
     <div class="panel">
       <div class="panel-title">Category Mix</div>
-      <div class="chart-wrap" style="height:280px"><canvas id="donut-chart"></canvas></div>
+      <div class="chart-wrap" style="height:320px"><canvas id="donut-chart"></canvas></div>
+      <div id="donut-legend" style="margin-top:12px"></div>
     </div>
   </div>
 
-  <!-- TREND + RECURRING -->
-  <div class="grid-2">
-    <div class="panel mb-24">
-      <div class="panel-title">12-Month Spending Trend</div>
-      <div class="chart-wrap" style="height:240px"><canvas id="trend-chart"></canvas></div>
-    </div>
-    <div class="panel mb-24">
+  <!-- TREND FULL WIDTH -->
+  <div class="panel mb-24">
+    <div class="panel-title">12-Month Spending Trend</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="trend-chart"></canvas></div>
+  </div>
+
+  <!-- RECURRING + TOP MERCHANTS + REFUNDS -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:20px;margin-bottom:24px">
+    <div class="panel">
       <div class="panel-title">Recurring Charges</div>
       <div id="recurring-total-badge">
         <div><div class="rtb-label">Total Monthly Recurring</div></div>
@@ -784,16 +824,12 @@ body {
       </div>
       <div id="recurring-list"></div>
     </div>
-  </div>
-
-  <!-- TOP MERCHANTS + REFUNDS -->
-  <div class="grid-2">
-    <div class="panel mb-24">
-      <div class="panel-title">Top Merchants This Month</div>
+    <div class="panel">
+      <div class="panel-title">Top Merchants</div>
       <div id="top-merchants"></div>
     </div>
-    <div class="panel mb-24">
-      <div class="panel-title">Refunds & Returns This Month</div>
+    <div class="panel">
+      <div class="panel-title">Refunds & Returns</div>
       <div id="refunds-panel"></div>
     </div>
   </div>
@@ -872,27 +908,23 @@ body {
     <div class="kpi-card"><div class="kpi-accent amber"></div><div class="kpi-label">Liquid Assets</div><div class="kpi-value" id="nwk-liquid">$0</div></div>
   </div>
 
-  <!-- CHARTS ROW 1: Equity Line + His vs Hers -->
-  <div class="grid-2">
-    <div class="panel mb-24">
+  <!-- NW CHARTS: 2x2 equal grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    <div class="panel">
       <div class="panel-title">Net Worth Trajectory</div>
-      <div style="height:220px"><canvas id="nw-equity-chart"></canvas></div>
+      <div style="height:240px"><canvas id="nw-equity-chart"></canvas></div>
     </div>
-    <div class="panel mb-24">
+    <div class="panel">
       <div class="panel-title">His vs Hers Over Time</div>
-      <div style="height:220px"><canvas id="nw-hvsh-chart"></canvas></div>
+      <div style="height:240px"><canvas id="nw-hvsh-chart"></canvas></div>
     </div>
-  </div>
-
-  <!-- CHARTS ROW 2: Allocation + Assets vs Liabilities -->
-  <div class="grid-2">
-    <div class="panel mb-24">
+    <div class="panel">
       <div class="panel-title">Wealth Allocation</div>
-      <div style="height:220px"><canvas id="nw-alloc-chart"></canvas></div>
+      <div style="height:240px"><canvas id="nw-alloc-chart"></canvas></div>
     </div>
-    <div class="panel mb-24">
+    <div class="panel">
       <div class="panel-title">Assets vs Liabilities</div>
-      <div style="height:220px"><canvas id="nw-avsl-chart"></canvas></div>
+      <div style="height:240px"><canvas id="nw-avsl-chart"></canvas></div>
     </div>
   </div>
 
@@ -1045,6 +1077,8 @@ body {
       <div>
         <div class="modal-section-label">Joint</div>
         <div id="nw-joint-fields"></div>
+        <div class="modal-section-label" style="margin-top:16px;color:var(--red)">Liabilities <span style="font-size:0.68rem;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none">enter remaining balance as negative (e.g. -18000)</span></div>
+        <div id="nw-liab-fields"></div>
         <div class="modal-section-label" style="margin-top:16px">Your Accounts</div>
         <div id="nw-my-fields"></div>
         <div style="margin-top:10px">
@@ -1090,6 +1124,7 @@ body {
 // ╚══════════════════════════════════════════════════════════╝
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?output=csv';
 const FIXED_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?gid=75479951&single=true&output=csv';
+const NW_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQN-gylKTMIUtqWqNXNeybojllwao2v-RoU9zUsrgYQLfet99gQcwzNeHrLPXq57cGz7LPhGp13BJaZ/pub?gid=1244561311&single=true&output=csv';
 
 const CAT_COLORS = {
   'Groceries':         '#10B981',
@@ -1157,6 +1192,11 @@ const NW_ACCOUNTS = [
   { id:'her_roth',      label:'Roth IRA',       icon:'💎', owner:'hers' },
   { id:'her_fidelity',  label:'Fidelity',       icon:'📊', owner:'hers' },
   { id:'her_crypto',    label:'Crypto',         icon:'₿',  owner:'hers' },
+  // Liabilities (shared/joint — enter as negative values)
+  { id:'loan_car',      label:'Car Loan',       icon:'🚗', owner:'joint', liability:true },
+  { id:'loan_home',     label:'Home Loan',      icon:'🏠', owner:'joint', liability:true },
+  { id:'loan_student',  label:'Student Loan',   icon:'🎓', owner:'joint', liability:true },
+  { id:'loan_trailer',  label:'Trailer Loan',   icon:'🚐', owner:'joint', liability:true },
 ];
 
 const RECURRING_KEYWORDS = ['SPOTIFY','APPLE.COM/BILL','YOUTUBE','PEACOCK','HELP.MAX','HELP.HBOMAX',
@@ -1169,6 +1209,7 @@ let allRows=[], activeCards=new Set(), allCards=[];
 let fixedExpenses=[]; // from Fixed tab
 let nwCustomAccounts=[];
 try{ nwCustomAccounts=JSON.parse(localStorage.getItem('nw_custom_accounts')||'[]'); }catch{}
+let nwSheetData=[]; // net worth history from Google Sheet
 let currentYear, currentMonth;
 let donutChart=null, trendChart=null, nwChart=null;
 let txnPage=1; const TXN_PER_PAGE=25;
@@ -1355,13 +1396,15 @@ function loadData(){
   updateMonthBtn();
   if(!SHEET_CSV_URL){loadDemo();return;}
 
-  // Fetch both CSVs in parallel
-  const fetches=[proxyFetch(SHEET_CSV_URL)];
-  if(FIXED_CSV_URL) fetches.push(proxyFetch(FIXED_CSV_URL));
+  // Fetch all three CSVs in parallel
+  const fetches=[
+    proxyFetch(SHEET_CSV_URL),
+    FIXED_CSV_URL ? proxyFetch(FIXED_CSV_URL) : Promise.reject('no fixed url'),
+    NW_CSV_URL ? proxyFetch(NW_CSV_URL) : Promise.reject('no nw url'),
+  ];
 
   Promise.allSettled(fetches).then(results=>{
-    const txnResult=results[0];
-    const fixedResult=results[1];
+    const [txnResult, fixedResult, nwResult] = results;
 
     if(txnResult.status==='rejected'||!txnResult.value){
       loadDemo(); return;
@@ -1375,9 +1418,23 @@ function loadData(){
         category: r.Category||r.category||'Fixed Expense',
         card: r.Card||r.card||'Checking',
       })).filter(r=>r.amount>0);
-      console.log('Fixed expenses loaded:',fixedExpenses.length,fixedExpenses);
     } else {
       fixedExpenses=[];
+    }
+
+    // Process net worth sheet data
+    if(nwResult&&nwResult.status==='fulfilled'&&nwResult.value&&nwResult.value.length>0){
+      nwSheetData=nwResult.value.map(r=>{
+        // Normalize — Sheet headers become keys
+        const entry={};
+        Object.entries(r).forEach(([k,v])=>{
+          entry[k.trim()]=v;
+        });
+        return entry;
+      }).filter(r=>r.Month&&r.Month.trim());
+      console.log('NW sheet data loaded:',nwSheetData.length,'entries');
+    } else {
+      nwSheetData=[];
     }
 
     processData(txnResult.value);
@@ -1483,25 +1540,34 @@ function getFixedAsRows(){
 
 // ── RENDER ALL ────────────────────────────────────────────
 function renderAll(){
-  const cardRows=getMonthRows();
-  const fixedRows=getFixedAsRows();
-  const rows=[...cardRows,...fixedRows];
-  const posRows=rows.filter(r=>r.cost>0);
-  const total=sumPositive(rows);
-  // Pre-compute category means ONCE for anomaly + bars + table
+  const cardRows=getMonthRows();           // card transactions only
+  const fixedRows=getFixedAsRows();        // fixed obligations only
+  const allRows=[...cardRows,...fixedRows]; // combined for totals/gauge
+  const total=sumPositive(allRows);        // true monthly total incl. fixed
+  const cardTotal=sumPositive(cardRows);   // card-only for trending
+
+  // Pre-compute category means from card rows only (not fixed)
   const _catMeans=computeCatMeans();
+
+  // Gauge, income, savings rate → use full total including fixed
   renderIncome(total);
-  renderKPIs(rows,total);
-  renderComparisons(total);
-  renderAnomalies(rows,_catMeans);
   renderGauge(total);
+
+  // KPIs → show card spend in "Total Spent", but pass full total for savings rate context
+  renderKPIs(cardRows, cardTotal, total);
+
+  // Comparisons → include fixed in totals for accurate MoM/YoY
+  renderComparisons(total);
+
+  // Trending panels → card rows only, no fixed expenses
+  renderAnomalies(cardRows, _catMeans);
   renderTrips();
-  renderCatBars(rows,_catMeans);
-  renderDonut(rows);
+  renderCatBars(cardRows, _catMeans);
+  renderDonut(cardRows);
   renderTrend();
   renderRecurring();
-  renderTopMerchants(rows);
-  renderRefunds(rows);
+  renderTopMerchants(cardRows);
+  renderRefunds(cardRows);
   renderTxnTable(_catMeans);
 }
 
@@ -1511,6 +1577,7 @@ function renderIncome(totalSpent){
   const saved=income-totalSpent;
   const rate=income>0?(saved/income)*100:0;
   document.getElementById('ib-spent').textContent=fmt(totalSpent);
+  // totalSpent here is the full total passed from renderAll (cards + fixed)
   document.getElementById('ib-saved').textContent=income?fmt(saved):'—';
   document.getElementById('ib-saved').style.color=saved>=0?'var(--green)':'var(--red)';
   document.getElementById('ib-rate').textContent=income?Math.round(rate)+'%':'—';
@@ -1523,10 +1590,11 @@ function renderIncome(totalSpent){
 }
 
 // ── KPIs ──────────────────────────────────────────────────
-function renderKPIs(rows,total){
+function renderKPIs(rows,total,fullTotal){
+  fullTotal=fullTotal||total;
   const {y:py,m:pm}=prevYM(currentYear,currentMonth);
-  const prev=sumPositive(getMonthRows(py,pm));
-  const delta=prev?(total-prev)/prev*100:null;
+  const prevFull=getMonthTotal(py,pm);
+  const delta=prevFull?(fullTotal-prevFull)/prevFull*100:null;
 
   document.getElementById('kv-total').textContent=fmt(total);
   const now=new Date();
@@ -1535,7 +1603,7 @@ function renderKPIs(rows,total){
   const elapsed=isCurrent?now.getDate():dim;
 
   const ksEl=document.getElementById('ks-total');
-  ksEl.textContent=prev?'vs '+fmt(prev)+' prev':'';
+  ksEl.textContent='card spend · '+fmt(fullTotal)+' total';
   const kdEl=document.getElementById('kd-total');
   if(delta!==null){
     kdEl.style.display='inline-flex';
@@ -1558,24 +1626,32 @@ function renderKPIs(rows,total){
 
   // Recurring KPI
   const recTotal=calcRecurringTotal();
-  // kv-recurring set below with fixed total
-  const fixedTot=getFixedTotal();
-  document.getElementById('kv-recurring').textContent=fmt(recTotal+fixedTot);
-  document.getElementById('ks-recurring').textContent=fixedTot>0?`incl. ${fmt(fixedTot)} obligations`:'';
+  const recTotalKPI=calcRecurringTotal();
+  const fixedTotKPI=getFixedTotal();
+  document.getElementById('kv-recurring').textContent=fmt(recTotalKPI+fixedTotKPI);
+  document.getElementById('ks-recurring').textContent=fixedTotKPI>0?`incl. ${fmt(fixedTotKPI)} obligations`:'';
 }
 
 // ── COMPARISONS ───────────────────────────────────────────
+function getMonthTotal(yr,mo){
+  // Full monthly total: card rows + fixed expenses (for accurate comparisons)
+  return sumPositive(getCached(yr,mo))+getFixedTotal();
+}
+
 function renderComparisons(total){
+  // total already includes fixed (passed from renderAll)
   const {y:py,m:pm}=prevYM(currentYear,currentMonth);
   const {y:yy,m:ym}=prevYearYM(currentYear,currentMonth);
-  const prevTotal=sumPositive(getMonthRows(py,pm));
-  const yoyTotal=sumPositive(getMonthRows(yy,ym));
 
-  // Avg of last 12 months
+  // Backfill fixed into historical months for apples-to-apples comparison
+  const prevTotal=getMonthTotal(py,pm);
+  const yoyTotal=getMonthTotal(yy,ym);
+
+  // Avg of last 12 months including fixed backfill
   let sum12=0,cnt=0;
   for(let i=1;i<=12;i++){
     const d=new Date(currentYear,currentMonth-i,1);
-    const t=sumPositive(getMonthRows(d.getFullYear(),d.getMonth()));
+    const t=getMonthTotal(d.getFullYear(),d.getMonth());
     if(t>0){sum12+=t;cnt++;}
   }
   const avg12=cnt>0?sum12/cnt:0;
@@ -1599,6 +1675,7 @@ function renderDelta(elId,current,prev,label){
 
 // ── CAT MEANS (computed once) ────────────────────────────
 function computeCatMeans(){
+  // Uses card rows only — fixed expenses excluded from spike detection
   const catAvgs={};
   for(let i=1;i<=6;i++){
     const d=new Date(currentYear,currentMonth-i,1);
@@ -1878,8 +1955,8 @@ function renderTrend(){
     borderWidth:0,stack:'a',
   }));
 
-  // Total line overlay
-  const totals=months.map(({y,m})=>+sumPositive(getMonthRows(y,m)).toFixed(2));
+  // Total line overlay — backfill fixed expenses into every historical month
+  const totals=months.map(({y,m})=>+(sumPositive(getCached(y,m))+getFixedTotal()).toFixed(2));
   datasets.push({
     label:'Total',
     data:totals,
@@ -2080,7 +2157,7 @@ function renderNW(){
     let v=parseFloat(latest[a.id])||0;
     if(a.owner==='joint'&&nwWho!=='combined') v=v/2;
     if(v>0) assets+=v;
-    else if(v<0) liabs+=v; // negatives = liabilities
+    else if(v<0||a.liability) liabs+=Math.min(v,0); // negatives = liabilities
     // Retirement: standard retirement IDs + any custom account labeled retirement-ish
     const retireIds=['my_401k','my_roth','my_fidelity','her_401k','her_roth','her_fidelity'];
     if(retireIds.includes(a.id)) retire+=Math.max(0,v);
@@ -2660,17 +2737,20 @@ function openNWModal(){
   const herFields=document.getElementById('nw-her-fields');
   const myCustom=document.getElementById('nw-my-custom');
   const herCustom=document.getElementById('nw-her-custom');
+  const liabFields=document.getElementById('nw-liab-fields');
   jointFields.innerHTML='';myFields.innerHTML='';herFields.innerHTML='';
-  myCustom.innerHTML='';herCustom.innerHTML='';
+  liabFields.innerHTML='';myCustom.innerHTML='';herCustom.innerHTML='';
 
   NW_ACCOUNTS.forEach(acct=>{
     const div=document.createElement('div');div.className='mfield';
-    const lbl=acct.owner==='joint'
+    const lbl=acct.owner==='joint'&&!acct.liability
       ?`${acct.icon} ${acct.label} <span style="font-size:0.66rem;color:var(--text3)">(full balance)</span>`
       :`${acct.icon} ${acct.label}`;
     div.innerHTML=`<label>${lbl}</label>
-      <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="0">`;
-    if(acct.owner==='joint') jointFields.appendChild(div);
+      <input type="number" id="nw-field-${acct.id}" value="${latest[acct.id]||''}" placeholder="${acct.liability?'e.g. -18000':'0'}"
+        style="${acct.liability?'border-color:rgba(239,68,68,0.3)':''}">`;
+    if(acct.liability) liabFields.appendChild(div);
+    else if(acct.owner==='joint') jointFields.appendChild(div);
     else if(acct.owner==='hers') herFields.appendChild(div);
     else myFields.appendChild(div);
   });
@@ -2715,15 +2795,41 @@ function saveNWEntry(){
   const month=document.getElementById('nw-entry-month').value;
   if(!month)return;
   const entry={month};
-  // Save all standard + custom accounts
   getAllAccounts().forEach(a=>{
     const el=document.getElementById('nw-field-'+a.id);
     if(el){const v=parseFloat(el.value);if(!isNaN(v))entry[a.id]=v;}
   });
-  const history=getNWHistory().filter(e=>e.month!==month);
-  history.push(entry);
-  localStorage.setItem('nw_history',JSON.stringify(history));
-  closeNWModal();renderNW();
+
+  // Save to localStorage as buffer
+  let local=[];
+  try{local=JSON.parse(localStorage.getItem('nw_history')||'[]');}catch{}
+  local=local.filter(e=>e.month!==month);
+  local.push(entry);
+  localStorage.setItem('nw_history',JSON.stringify(local));
+
+  // Build the row to copy into Google Sheet
+  const cols=getAllAccounts().map(a=>entry[a.id]!==undefined?entry[a.id]:'');
+  const sheetRow=[month,...cols].join('	');
+  
+  closeNWModal();
+
+  // Show copy-to-sheet prompt
+  const banner=document.createElement('div');
+  banner.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--surface);border:1px solid var(--blue);border-radius:12px;
+    padding:16px 20px;z-index:400;max-width:560px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.4)`;
+  banner.innerHTML=`
+    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--blue);margin-bottom:8px">Saved locally — paste into Google Sheet to persist</div>
+    <div style="font-size:0.75rem;color:var(--text2);margin-bottom:10px">Copy this row and paste it into a new row in your NetWorth tab:</div>
+    <textarea readonly onclick="this.select()" style="width:100%;height:52px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;font-family:var(--mono);font-size:0.72rem;color:var(--text);resize:none">${sheetRow}</textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <div style="font-size:0.72rem;color:var(--text3)">Click the text above to select all, then Ctrl+C</div>
+      <button onclick="this.parentElement.parentElement.remove()" style="padding:5px 14px;border-radius:8px;background:var(--blue);border:none;color:white;font-size:0.78rem;font-weight:600;cursor:pointer">Got it</button>
+    </div>`;
+  document.body.appendChild(banner);
+  setTimeout(()=>banner.remove(),30000);
+
+  renderNW();
 }
 
 // TRIP MODAL
@@ -2755,7 +2861,28 @@ function getBudgets(){
   }catch{return {...DEFAULT_BUDGETS};}
 }
 function getBudgetHistory(){try{return JSON.parse(localStorage.getItem('budget_history')||'[]');}catch{return[];}}
-function getNWHistory(){try{return JSON.parse(localStorage.getItem('nw_history')||'[]');}catch{return[];}}
+function getNWHistory(){
+  // Merge Sheet data (source of truth) with localStorage (pending local entries)
+  // Sheet data keyed by Month column, localStorage by month field
+  const sheetEntries=nwSheetData.map(r=>{
+    const entry={month: r.Month.trim()};
+    // Map all account columns
+    getAllAccounts().forEach(a=>{ if(r[a.id]!==undefined&&r[a.id]!=='') entry[a.id]=parseFloat(r[a.id])||0; });
+    // Also pass through any extra columns (custom accounts)
+    Object.entries(r).forEach(([k,v])=>{ if(k!=='Month'&&entry[k]===undefined&&v!=='') entry[k]=parseFloat(v)||0; });
+    return entry;
+  });
+
+  // localStorage entries — used for months not yet saved to Sheet
+  let localEntries=[];
+  try{ localEntries=JSON.parse(localStorage.getItem('nw_history')||'[]'); }catch{}
+
+  // Merge: Sheet takes priority, local fills gaps
+  const sheetMonths=new Set(sheetEntries.map(e=>e.month));
+  const localOnly=localEntries.filter(e=>!sheetMonths.has(e.month));
+
+  return [...sheetEntries,...localOnly].sort((a,b)=>a.month.localeCompare(b.month));
+}
 function getTrips(){try{return JSON.parse(localStorage.getItem('trips')||'[]');}catch{return[];}}
 
 // ── HELPERS ───────────────────────────────────────────────
